@@ -1,11 +1,10 @@
 from flask import Flask, render_template, request, jsonify
-import boto3
-import json
 import os
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
-from database import get_topic_response
+from s3_database import S3Database
 from ai_providers import AIProvider
+from knowledge_barter import KnowledgeBarterSystem
 try:
     import PyPDF2
 except ImportError:
@@ -30,41 +29,55 @@ class AILearningPlatform:
         self.learning_formats = ['chat', 'sketch', 'video', 'ebook']
         self.bedrock_available = False
         self.ai_provider = AIProvider()
+        self.s3_db = S3Database()
+        self.barter_system = KnowledgeBarterSystem()
         
-        # Try to initialize Bedrock client
-        try:
-            self.bedrock = boto3.client(
-                'bedrock-runtime',
-                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
-                region_name=os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
-            )
-            self.bedrock_available = True
-            print("Bedrock connected successfully!")
-        except Exception as e:
-            print(f"Bedrock not available: {e}")
-            print("Using fallback AI system...")
-            self.bedrock_available = False
+        # Using Gemini AI provider with S3 database and Knowledge Barter
+        print("AI Learning Platform initialized with Gemini AI, S3 database, and Knowledge Barter System")
         
     def extract_text_from_file(self, filepath):
         """Extract text from uploaded files"""
         try:
             if filepath.endswith('.txt'):
                 with open(filepath, 'r', encoding='utf-8') as f:
-                    return f.read()[:5000]
+                    content = f.read()[:15000]  # Increased from 5000 to 15000
+                    print(f"TXT: Read {len(content)} chars")
+                    return content
             elif filepath.endswith('.pdf') and PyPDF2:
                 with open(filepath, 'rb') as f:
                     reader = PyPDF2.PdfReader(f)
                     text = ""
-                    for page in reader.pages[:3]:
-                        text += page.extract_text()
-                    return text[:5000]
+                    total_pages = len(reader.pages)
+                    
+                    # Read up to 50 pages for comprehensive coverage
+                    if total_pages > 50:
+                        # For very large PDFs, read first 25 pages + every 3rd page after
+                        key_pages = list(range(0, min(25, total_pages)))  # First 25 pages
+                        key_pages.extend(range(25, total_pages, 3))  # Every 3rd page after
+                        pages_to_read = key_pages[:50]  # Max 50 pages total
+                    else:
+                        pages_to_read = range(total_pages)  # Read all pages if 50 or less
+                    
+                    for page_num in pages_to_read:
+                        if page_num < total_pages:
+                            page_text = reader.pages[page_num].extract_text()
+                            text += f"[Page {page_num + 1}] {page_text}\n\n"
+                            
+                            # Stop if we have enough content
+                            if len(text) > 50000:  # Increased for 50-page coverage
+                                break
+                    
+                    print(f"PDF: Read {len(pages_to_read)} key pages from {total_pages} total, {len(text)} chars")
+                    return text[:50000]  # Return up to 50k characters
             elif filepath.endswith('.docx') and docx:
                 doc = docx.Document(filepath)
                 text = ""
-                for para in doc.paragraphs[:20]:
+                for para in doc.paragraphs[:50]:  # Increased from 20 to 50 paragraphs
                     text += para.text + "\n"
-                return text[:5000]
+                    if len(text) > 15000:  # Stop if we have enough
+                        break
+                print(f"DOCX: Read {len([p for p in doc.paragraphs if p.text.strip()])} paragraphs, {len(text)} chars")
+                return text[:15000]
             return ""
         except Exception as e:
             print(f"Error extracting text: {e}")
@@ -114,15 +127,19 @@ class AILearningPlatform:
     def get_smart_fallback(self, topic, complexity_level, format_type):
         """Smart fallback system with good explanations"""
         
-        # Check comprehensive topic database first
-        specific_response = get_topic_response(topic, complexity_level)
-        if specific_response:
-            return specific_response
+        # Check S3 database first
+        topic_data = self.s3_db.get_topic(topic)
+        if topic_data:
+            return topic_data['explanation']
         
-        # Try AI providers for any topic
-        ai_response = self.ai_provider.get_ai_response(topic, complexity_level, format_type, "")
-        if ai_response:
-            return ai_response
+        # Generic fallback responses for when AI fails
+        topic_lower = topic.lower()
+        if complexity_level == 'beginner':
+            return f"{topic.capitalize()} is an important concept with practical applications. It involves understanding key principles and how they work together in real situations."
+        elif complexity_level == 'advanced':
+            return f"{topic.capitalize()} requires comprehensive analysis, theoretical understanding, and synthesis of complex interconnected concepts and methodologies."
+        else:
+            return f"{topic.capitalize()} involves multiple principles and concepts that work together, with practical applications and real-world implications."
         
         # Comprehensive topic-specific explanations
         explanations = {
@@ -201,10 +218,29 @@ class AILearningPlatform:
         context = ""
         if uploaded_files:
             for filepath in uploaded_files:
-                context += self.extract_text_from_file(filepath) + "\n"
+                extracted = self.extract_text_from_file(filepath)
+                context += extracted + "\n"
+                print(f"Extracted {len(extracted)} chars from {filepath}")  # Debug
         
-        ai_content = self.get_bedrock_response(topic, complexity_level, format_type, context)
+        print(f"Total context: {len(context)} chars")  # Debug
         
+        # For video format, skip database and go straight to YouTube
+        if format_type == 'video':
+            print(f"Video format requested for {topic} - using YouTube integration")
+            ai_content = self.ai_provider.get_ai_response(topic, complexity_level, format_type, context)
+            if not ai_content:
+                ai_content = f"Video content for {topic}"
+        else:
+            # Try S3 database first for other formats
+            topic_data = self.s3_db.get_topic(topic)
+            if topic_data:
+                ai_content = topic_data['explanation']
+            else:
+                # Use AI for any topic (with or without context)
+                ai_content = self.ai_provider.get_ai_response(topic, complexity_level, format_type, context)
+                if not ai_content:
+                    # Final fallback to generic responses
+                    ai_content = self.get_smart_fallback(topic, complexity_level, format_type)
         formatted_content = self.format_content(ai_content, format_type)
         
         return {
@@ -228,7 +264,10 @@ class AILearningPlatform:
             return f"🎥 [00:00] {content}"
         
         elif format_type == 'ebook':
-            return f"📚 **Chapter Overview**\n\n{content}\n\n**Quick Reference:**\n• Core concept explained\n• Real-world applications\n• Next steps for learning"
+            return f"📚 **Comprehensive Summary**\n\n{content}\n\n**Key Takeaways:**\n• Main concepts covered\n• Important details\n• Practical applications"
+        
+        elif format_type == 'mindmap':
+            return f"🧠 **Mind Map Structure**\n\n{content}\n\n💡 Tip: Visualize this as a branching diagram with the main topic at center!"
         
         return content
 
@@ -267,6 +306,46 @@ def learn():
 @app.route('/formats')
 def get_formats():
     return jsonify(platform.learning_formats)
+
+@app.route('/submit_explanation', methods=['POST'])
+def submit_explanation():
+    try:
+        user_id = request.form.get('user_id', 'anonymous')
+        topic = request.form.get('topic')
+        level = request.form.get('level')
+        transcript = request.form.get('transcript')
+        
+        result = platform.barter_system.submit_explanation(user_id, topic, level, transcript)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/community_explanations/<topic>')
+def get_community_explanations(topic):
+    try:
+        explanations = platform.barter_system.get_community_explanations(topic)
+        return jsonify({'explanations': explanations})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/upvote_explanation', methods=['POST'])
+def upvote_explanation():
+    try:
+        user_id = request.form.get('user_id', 'anonymous')
+        explanation_id = request.form.get('explanation_id')
+        
+        result = platform.barter_system.upvote_explanation(user_id, explanation_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/user_stats/<user_id>')
+def get_user_stats(user_id):
+    try:
+        stats = platform.barter_system.get_user_stats(user_id)
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 if __name__ == '__main__':
     app.run(debug=True)

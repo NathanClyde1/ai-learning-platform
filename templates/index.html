@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Learning Platform</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -20,6 +21,7 @@
                 <div class="upload-section">
                     <input type="file" id="document" accept=".txt,.pdf,.docx" multiple>
                     <label for="document">📄 Upload supporting documents (optional)</label>
+                    <button type="button" id="clearFiles" class="clear-files-btn" style="display: none;">✕ Clear Files</button>
                 </div>
                 
                 <div class="controls">
@@ -34,13 +36,20 @@
                             💬 Chat
                         </button>
                         <button class="format-btn sketch-btn" onclick="learn('sketch')">
-                            ✏️ Sketch
+                            ✏️ Visual
                         </button>
                         <button class="format-btn video-btn" onclick="learn('video')">
                             🎥 Video
                         </button>
                         <button class="format-btn ebook-btn" onclick="learn('ebook')">
-                            📚 E-book
+                            📚 Summary
+                        </button>
+
+                        <button class="format-btn mindmap-btn" onclick="learn('mindmap')">
+                            🧠 Mind Map
+                        </button>
+                        <button class="format-btn barter-btn" onclick="toggleBarterSystem()">
+                            🤝 Teach Back
                         </button>
                     </div>
                 </div>
@@ -52,6 +61,44 @@
             </div>
             
             <div id="result" class="result-area"></div>
+            
+            <!-- Notification System -->
+            <div id="notification" class="notification"></div>
+            
+            <!-- Knowledge Barter System -->
+            <div id="barterSystem" class="barter-system" style="display: none;">
+                <h3>🤝 Community Knowledge Barter</h3>
+                
+                <div class="barter-tabs">
+                    <button class="tab-btn active" onclick="showBarterTab('teach')">Teach Back</button>
+                    <button class="tab-btn" onclick="showBarterTab('borrow')">Community Posts</button>
+                    <button class="tab-btn" onclick="showBarterTab('stats')">My Points</button>
+                </div>
+                
+                <!-- Teach Back Tab -->
+                <div id="teachTab" class="barter-tab">
+                    <div class="record-section">
+                        <p>Record your explanation of the topic:</p>
+                        <button id="recordBtn" onclick="toggleRecording()">🎤 Start Recording</button>
+                        <div id="recordingStatus"></div>
+                        <textarea id="transcriptArea" placeholder="Or type your explanation here..." rows="4"></textarea>
+                        <button onclick="submitExplanation()">Submit for AI Scoring</button>
+                    </div>
+                </div>
+                
+                <!-- Community Posts Tab -->
+                <div id="borrowTab" class="barter-tab" style="display: none;">
+                    <div id="communityExplanations"></div>
+                    <button onclick="loadCommunityExplanations()">Load Community Posts</button>
+                    <button onclick="loadAllExplanations()">Show All Posts</button>
+                </div>
+                
+                <!-- Stats Tab -->
+                <div id="statsTab" class="barter-tab" style="display: none;">
+                    <div id="userStats"></div>
+                    <button onclick="loadUserStats()">Refresh Stats</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -62,7 +109,7 @@
             const files = document.getElementById('document').files;
             
             if (!topic.trim()) {
-                alert('Please enter a topic to learn about!');
+                showNotification('Please enter a topic to learn about!', 'error');
                 return;
             }
             
@@ -98,13 +145,23 @@
                     'chat': '💬',
                     'sketch': '✏️', 
                     'video': '🎥',
-                    'ebook': '📚'
+                    'ebook': '📚',
+                    'mindmap': '🧠'
                 };
+                
+
                 
                 resultDiv.innerHTML = `
                     <h3>${formatEmojis[format]} ${format.toUpperCase()} Format - ${level.charAt(0).toUpperCase() + level.slice(1)} Level</h3>
                     <div class="content">${result.content}</div>
                 `;
+                
+                // Render Mermaid diagrams if present
+                if (result.content.includes('```mermaid')) {
+                    setTimeout(() => {
+                        mermaid.init(undefined, resultDiv.querySelectorAll('.mermaid'));
+                    }, 100);
+                }
                 
                 setTimeout(() => {
                     resultDiv.classList.add('show');
@@ -112,7 +169,7 @@
                 
             } catch (error) {
                 document.getElementById('loading').style.display = 'none';
-                alert('Something went wrong. Please try again!');
+                showNotification('Something went wrong. Please try again!', 'error');
             }
         }
         
@@ -122,6 +179,271 @@
                 learn('chat'); // Default to chat format
             }
         });
+        
+        // File upload feedback
+        document.getElementById('document').addEventListener('change', function(e) {
+            const files = e.target.files;
+            const label = document.querySelector('label[for="document"]');
+            const clearBtn = document.getElementById('clearFiles');
+            
+            if (files.length > 0) {
+                const fileNames = Array.from(files).map(f => f.name).join(', ');
+                label.innerHTML = `📄 ${files.length} file(s) selected: ${fileNames.substring(0, 50)}${fileNames.length > 50 ? '...' : ''}`;
+                label.style.backgroundColor = '#e8f5e8';
+                label.style.borderColor = '#4caf50';
+                label.style.color = '#2e7d32';
+                clearBtn.style.display = 'inline-block';
+            } else {
+                label.innerHTML = '📄 Upload supporting documents (optional)';
+                label.style.backgroundColor = '';
+                label.style.borderColor = '';
+                label.style.color = '';
+                clearBtn.style.display = 'none';
+            }
+        });
+        
+        // Initialize Mermaid
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+        
+
+        
+        // Clear files functionality
+        document.getElementById('clearFiles').addEventListener('click', function() {
+            const fileInput = document.getElementById('document');
+            const label = document.querySelector('label[for="document"]');
+            const clearBtn = document.getElementById('clearFiles');
+            
+            fileInput.value = '';
+            label.innerHTML = '📄 Upload supporting documents (optional)';
+            label.style.backgroundColor = '';
+            label.style.borderColor = '';
+            label.style.color = '';
+            clearBtn.style.display = 'none';
+        });
+        
+        // Notification System
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type} show`;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 4000);
+        }
+        
+        // Knowledge Barter System Functions
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let currentUserId = 'user_' + Math.random().toString(36).substr(2, 9); // Persistent user ID
+        
+        function toggleBarterSystem() {
+            const barterDiv = document.getElementById('barterSystem');
+            barterDiv.style.display = barterDiv.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function showBarterTab(tabName) {
+            document.querySelectorAll('.barter-tab').forEach(tab => tab.style.display = 'none');
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(tabName + 'Tab').style.display = 'block';
+            event.target.classList.add('active');
+        }
+        
+        async function toggleRecording() {
+            const recordBtn = document.getElementById('recordBtn');
+            const status = document.getElementById('recordingStatus');
+            
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        transcribeAudio(audioBlob);
+                    };
+                    
+                    mediaRecorder.start();
+                    isRecording = true;
+                    recordBtn.textContent = '⏹️ Stop Recording';
+                    status.textContent = 'Recording... Speak your explanation now!';
+                } catch (error) {
+                    status.textContent = 'Microphone access denied. Please type your explanation.';
+                }
+            } else {
+                mediaRecorder.stop();
+                isRecording = false;
+                recordBtn.textContent = '🎤 Start Recording';
+                status.textContent = 'Processing audio...';
+            }
+        }
+        
+        function transcribeAudio(audioBlob) {
+            // Simple fallback - in real implementation, use speech-to-text API
+            document.getElementById('recordingStatus').textContent = 'Audio recorded! Please type your explanation in the text area.';
+        }
+        
+        async function submitExplanation() {
+            const topic = document.getElementById('topic').value;
+            const level = document.getElementById('level').value;
+            const transcript = document.getElementById('transcriptArea').value;
+            
+            if (!topic || !transcript) {
+                showNotification('Please enter a topic and your explanation!', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('user_id', currentUserId);
+            formData.append('topic', topic);
+            formData.append('level', level);
+            formData.append('transcript', transcript);
+            
+            try {
+                const response = await fetch('/submit_explanation', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(`${result.message} Clarity Score: ${result.clarity_score}/10`, 'success');
+                    document.getElementById('transcriptArea').value = '';
+                } else {
+                    showNotification('Error: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to submit explanation', 'error');
+            }
+        }
+        
+        async function loadCommunityExplanations() {
+            const topic = document.getElementById('topic').value;
+            if (!topic) {
+                // Load all explanations if no topic specified
+                loadAllExplanations();
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/community_explanations/${encodeURIComponent(topic)}`);
+                const data = await response.json();
+                
+                const container = document.getElementById('communityExplanations');
+                container.innerHTML = '';
+                
+                if (data.explanations && data.explanations.length > 0) {
+                    data.explanations.forEach(exp => {
+                        const expDiv = document.createElement('div');
+                        expDiv.className = 'community-explanation';
+                        expDiv.innerHTML = `
+                            <div class="post-header">
+                                <h4>${exp.topic} (${exp.level})</h4>
+                                <div class="post-stats">
+                                    <span class="clarity-score">Clarity: ${exp.clarity_score}/10</span>
+                                    <div class="upvote-section">
+                                        <button class="upvote-btn" onclick="upvoteExplanation(${exp.id})">↑</button>
+                                        <span class="upvote-count">${exp.upvotes}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="post-content">${exp.transcript}</p>
+                        `;
+                        container.appendChild(expDiv);
+                    });
+                } else {
+                    container.innerHTML = '<p>No community explanations found for this topic yet. Be the first to contribute!</p>';
+                }
+            } catch (error) {
+                console.error('Error loading explanations:', error);
+                const container = document.getElementById('communityExplanations');
+                container.innerHTML = '<p>Error loading community posts. Please try again.</p>';
+            }
+        }
+        
+        // Load all explanations if no topic specified
+        async function loadAllExplanations() {
+            try {
+                const response = await fetch('/community_explanations/all');
+                const data = await response.json();
+                
+                const container = document.getElementById('communityExplanations');
+                container.innerHTML = '';
+                
+                if (data.explanations && data.explanations.length > 0) {
+                    data.explanations.forEach(exp => {
+                        const expDiv = document.createElement('div');
+                        expDiv.className = 'community-explanation';
+                        expDiv.innerHTML = `
+                            <div class="post-header">
+                                <h4>${exp.topic} (${exp.level})</h4>
+                                <div class="post-stats">
+                                    <span class="clarity-score">Clarity: ${exp.clarity_score}/10</span>
+                                    <div class="upvote-section">
+                                        <button class="upvote-btn" onclick="upvoteExplanation(${exp.id})">↑</button>
+                                        <span class="upvote-count">${exp.upvotes}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="post-content">${exp.transcript}</p>
+                        `;
+                        container.appendChild(expDiv);
+                    });
+                } else {
+                    container.innerHTML = '<p>No community posts yet. Be the first to contribute!</p>';
+                }
+            } catch (error) {
+                showNotification('Failed to load community explanations', 'error');
+            }
+        }
+        
+        async function upvoteExplanation(explanationId) {
+            const formData = new FormData();
+            formData.append('user_id', currentUserId);
+            formData.append('explanation_id', explanationId);
+            
+            try {
+                const response = await fetch('/upvote_explanation', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                showNotification(result.message || 'Upvoted!', 'success');
+                loadCommunityExplanations(); // Refresh to show updated count
+            } catch (error) {
+                showNotification('Failed to upvote', 'error');
+            }
+        }
+        
+        async function loadUserStats() {
+            try {
+                const response = await fetch(`/user_stats/${currentUserId}`);
+                const stats = await response.json();
+                
+                const container = document.getElementById('userStats');
+                container.innerHTML = `
+                    <div class="stats-card">
+                        <h4>🏆 Your Knowledge Points: ${stats.total_points}</h4>
+                        <p>🎓 Explanations Shared: ${stats.explanations_count}</p>
+                        <p>⬆️ Upvotes Given: ${stats.upvotes_given}</p>
+                        
+                        <div class="rewards">
+                            <h5>Available Rewards:</h5>
+                            ${stats.can_redeem_mentorship ? '<p>✅ Mentorship Session (50 points)</p>' : '<p>❌ Mentorship Session (Need 50 points)</p>'}
+                            ${stats.can_redeem_bonus_ai ? '<p>✅ Bonus AI Simulations (20 points)</p>' : '<p>❌ Bonus AI Simulations (Need 20 points)</p>'}
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                showNotification('Failed to load user stats', 'error');
+            }
+        }
     </script>
 </body>
 </html>

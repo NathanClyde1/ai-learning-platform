@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Learning Platform</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 AI Learning Platform</h1>
+            <p>Transform complex topics into personalized learning experiences</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="input-section">
+                <input type="text" id="topic" placeholder="What would you like to learn today? (e.g., React, JavaScript, AWS)">
+                
+                <div class="upload-section">
+                    <input type="file" id="document" accept=".txt,.pdf,.docx" multiple>
+                    <label for="document">📄 Upload supporting documents (optional)</label>
+                </div>
+                
+                <div class="controls">
+                    <select id="level">
+                        <option value="beginner">🌱 Beginner</option>
+                        <option value="intermediate">🚀 Intermediate</option>
+                        <option value="advanced">🎯 Advanced</option>
+                    </select>
+                    
+                    <div class="format-grid">
+                        <button class="format-btn chat-btn" onclick="learn('chat')">
+                            💬 Chat
+                        </button>
+                        <button class="format-btn sketch-btn" onclick="learn('sketch')">
+                            ✏️ Sketch
+                        </button>
+                        <button class="format-btn video-btn" onclick="learn('video')">
+                            🎥 Video
+                        </button>
+                        <button class="format-btn ebook-btn" onclick="learn('ebook')">
+                            📚 E-book
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Generating your personalized learning content...</p>
+            </div>
+            
+            <div id="result" class="result-area"></div>
+        </div>
+    </div>
+
+    <script>
+        async function learn(format) {
+            const topic = document.getElementById('topic').value;
+            const level = document.getElementById('level').value;
+            const files = document.getElementById('document').files;
+            
+            if (!topic.trim()) {
+                alert('Please enter a topic to learn about!');
+                return;
+            }
+            
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').classList.remove('show');
+            
+            const formData = new FormData();
+            formData.append('topic', topic);
+            formData.append('level', level);
+            formData.append('format', format);
+            
+            for (let file of files) {
+                formData.append('documents', file);
+            }
+            
+            try {
+                const response = await fetch('/learn', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                // Hide loading
+                document.getElementById('loading').style.display = 'none';
+                
+                // Show result with animation
+                const resultDiv = document.getElementById('result');
+                resultDiv.className = `result-area format-${format}`;
+                
+                const formatEmojis = {
+                    'chat': '💬',
+                    'sketch': '✏️', 
+                    'video': '🎥',
+                    'ebook': '📚'
+                };
+                
+                resultDiv.innerHTML = `
+                    <h3>${formatEmojis[format]} ${format.toUpperCase()} Format - ${level.charAt(0).toUpperCase() + level.slice(1)} Level</h3>
+                    <div class="content">${result.content}</div>
+                `;
+                
+                setTimeout(() => {
+                    resultDiv.classList.add('show');
+                }, 100);
+                
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                alert('Something went wrong. Please try again!');
+            }
+        }
+        
+        // Add enter key support
+        document.getElementById('topic').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                learn('chat'); // Default to chat format
+            }
+        });
+    </script>
+</body>
+</html>

@@ -51,6 +51,9 @@
                         <button class="format-btn barter-btn" onclick="toggleBarterSystem()">
                             🤝 Teach Back
                         </button>
+                        <button class="format-btn game-btn" onclick="toggleGameSystem()">
+                            🎮 Challenges
+                        </button>
                     </div>
                 </div>
             </div>
@@ -97,6 +100,69 @@
                 <div id="statsTab" class="barter-tab" style="display: none;">
                     <div id="userStats"></div>
                     <button onclick="loadUserStats()">Refresh Stats</button>
+                </div>
+            </div>
+            
+            <!-- Game System -->
+            <div id="gameSystem" class="game-system" style="display: none;">
+                <h3>🎮 Gamified Learning Challenges</h3>
+                
+                <div class="game-tabs">
+                    <button class="tab-btn active" onclick="showGameTab('play')">Play Challenge</button>
+                    <button class="tab-btn" onclick="showGameTab('stats')">My Progress</button>
+                    <button class="tab-btn" onclick="showGameTab('leaderboard')">Leaderboard</button>
+                </div>
+                
+                <!-- Play Challenge Tab -->
+                <div id="playTab" class="game-tab">
+                    <div class="category-selector">
+                        <h4>Choose Category:</h4>
+                        <div class="custom-dropdown">
+                            <div class="dropdown-selected" id="dropdownSelected">
+                                <span>All Categories</span>
+                                <span class="dropdown-arrow">▼</span>
+                            </div>
+                            <div class="dropdown-options" id="dropdownOptions">
+                                <div class="dropdown-option" data-value="">All Categories</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="difficulty-selector">
+                        <h4>Choose Difficulty:</h4>
+                        <button class="difficulty-btn" onclick="startChallenge('beginner')">🟢 Beginner</button>
+                        <button class="difficulty-btn" onclick="startChallenge('intermediate')">🟡 Intermediate</button>
+                        <button class="difficulty-btn" onclick="startChallenge('advanced')">🔴 Advanced</button>
+                    </div>
+                    
+                    <div id="challengeArea" class="challenge-area" style="display: none;">
+                        <div class="challenge-header">
+                            <h4 id="challengeTitle"></h4>
+                            <div class="timer-points">
+                                <span id="timer">⏱️ 30s</span>
+                                <span id="pointsDisplay">💎 0 pts</span>
+                            </div>
+                        </div>
+                        
+                        <div class="challenge-content">
+                            <p id="challengeQuestion"></p>
+                            <div id="challengeOptions" class="options-grid"></div>
+                        </div>
+                        
+                        <div class="challenge-result" id="challengeResult" style="display: none;"></div>
+                    </div>
+                </div>
+                
+                <!-- Progress Tab -->
+                <div id="gameStatsTab" class="game-tab" style="display: none;">
+                    <div id="gameStats"></div>
+                    <button onclick="loadGameStats()">Refresh Progress</button>
+                </div>
+                
+                <!-- Leaderboard Tab -->
+                <div id="leaderboardTab" class="game-tab" style="display: none;">
+                    <div id="leaderboard"></div>
+                    <button onclick="loadLeaderboard()">Refresh Leaderboard</button>
                 </div>
             </div>
         </div>
@@ -443,6 +509,297 @@
             } catch (error) {
                 showNotification('Failed to load user stats', 'error');
             }
+        }
+        
+        // Game System Functions
+        let currentChallenge = null;
+        let challengeTimer = null;
+        let timeRemaining = 0;
+        let startTime = 0;
+        
+        function toggleGameSystem() {
+            const gameDiv = document.getElementById('gameSystem');
+            if (gameDiv.style.display === 'none') {
+                gameDiv.style.display = 'block';
+                loadCategories(); // Load categories when opening game system
+            } else {
+                gameDiv.style.display = 'none';
+            }
+        }
+        
+        let selectedCategory = '';
+        
+        async function loadCategories() {
+            try {
+                const response = await fetch('/game/categories');
+                const data = await response.json();
+                
+                const optionsContainer = document.getElementById('dropdownOptions');
+                optionsContainer.innerHTML = '<div class="dropdown-option" data-value="">All Categories</div>';
+                
+                data.categories.forEach(category => {
+                    const option = document.createElement('div');
+                    option.className = 'dropdown-option';
+                    option.setAttribute('data-value', category);
+                    option.textContent = category;
+                    option.onclick = () => selectCategory(category, category);
+                    optionsContainer.appendChild(option);
+                });
+                
+                // Add click handler for "All Categories"
+                optionsContainer.firstChild.onclick = () => selectCategory('', 'All Categories');
+                
+                // Add dropdown toggle functionality
+                setupDropdown();
+                
+            } catch (error) {
+                console.error('Failed to load categories:', error);
+            }
+        }
+        
+        function setupDropdown() {
+            const selected = document.getElementById('dropdownSelected');
+            const options = document.getElementById('dropdownOptions');
+            
+            selected.onclick = () => {
+                options.style.display = options.style.display === 'block' ? 'none' : 'block';
+            };
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.custom-dropdown')) {
+                    options.style.display = 'none';
+                }
+            });
+        }
+        
+        function selectCategory(value, text) {
+            selectedCategory = value;
+            document.getElementById('dropdownSelected').querySelector('span').textContent = text;
+            document.getElementById('dropdownOptions').style.display = 'none';
+        }
+        
+        function showGameTab(tabName) {
+            document.querySelectorAll('.game-tab').forEach(tab => tab.style.display = 'none');
+            document.querySelectorAll('.game-tabs .tab-btn').forEach(btn => btn.classList.remove('active'));
+            
+            if (tabName === 'stats') {
+                document.getElementById('gameStatsTab').style.display = 'block';
+            } else {
+                document.getElementById(tabName + 'Tab').style.display = 'block';
+            }
+            event.target.classList.add('active');
+        }
+        
+        async function startChallenge(difficulty) {
+            try {
+                const url = selectedCategory ? `/game/challenge/${difficulty}/${encodeURIComponent(selectedCategory)}` : `/game/challenge/${difficulty}`;
+                const response = await fetch(url);
+                const challenge = await response.json();
+                
+                if (challenge.error) {
+                    showNotification(challenge.error, 'error');
+                    return;
+                }
+                
+                currentChallenge = challenge;
+                displayChallenge(challenge);
+                startTimer(challenge.time_limit);
+                
+            } catch (error) {
+                showNotification('Failed to load challenge', 'error');
+            }
+        }
+        
+        function displayChallenge(challenge) {
+            document.getElementById('challengeTitle').textContent = `${challenge.title} (${challenge.category})`;
+            document.getElementById('challengeQuestion').textContent = challenge.question;
+            document.getElementById('pointsDisplay').textContent = `💎 ${challenge.points} pts`;
+            
+            const optionsDiv = document.getElementById('challengeOptions');
+            optionsDiv.innerHTML = '';
+            
+            challenge.options.forEach(option => {
+                const button = document.createElement('button');
+                button.className = 'option-btn';
+                button.textContent = option;
+                button.onclick = () => submitAnswer(option);
+                optionsDiv.appendChild(button);
+            });
+            
+            document.getElementById('challengeArea').style.display = 'block';
+            document.getElementById('challengeResult').style.display = 'none';
+            startTime = Date.now();
+        }
+        
+        function startTimer(seconds) {
+            timeRemaining = seconds;
+            updateTimerDisplay();
+            
+            challengeTimer = setInterval(() => {
+                timeRemaining--;
+                updateTimerDisplay();
+                
+                if (timeRemaining <= 0) {
+                    clearInterval(challengeTimer);
+                    submitAnswer(''); // Time's up
+                }
+            }, 1000);
+        }
+        
+        function updateTimerDisplay() {
+            document.getElementById('timer').textContent = `⏱️ ${timeRemaining}s`;
+            
+            // Change color based on time remaining
+            const timerEl = document.getElementById('timer');
+            if (timeRemaining <= 5) {
+                timerEl.style.color = '#dc3545';
+            } else if (timeRemaining <= 10) {
+                timerEl.style.color = '#ffc107';
+            } else {
+                timerEl.style.color = '#28a745';
+            }
+        }
+        
+        async function submitAnswer(answer) {
+            if (!currentChallenge) return;
+            
+            clearInterval(challengeTimer);
+            const timeTaken = Math.floor((Date.now() - startTime) / 1000);
+            
+            // Disable all option buttons
+            document.querySelectorAll('.option-btn').forEach(btn => btn.disabled = true);
+            
+            const formData = new FormData();
+            formData.append('user_id', currentUserId);
+            formData.append('challenge_id', currentChallenge.id);
+            formData.append('answer', answer);
+            formData.append('time_taken', timeTaken);
+            
+            try {
+                const response = await fetch('/game/submit', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                displayResult(result);
+                
+            } catch (error) {
+                showNotification('Failed to submit answer', 'error');
+            }
+        }
+        
+        function displayResult(result) {
+            const resultDiv = document.getElementById('challengeResult');
+            resultDiv.innerHTML = `
+                <div class="result-content ${result.is_correct ? 'correct' : 'incorrect'}">
+                    <h4>${result.is_correct ? '✅ Correct!' : '❌ Incorrect'}</h4>
+                    <p>${result.message}</p>
+                    <p><strong>Points Earned:</strong> ${result.points_earned}</p>
+                    <button onclick="resetChallenge()" class="play-again-btn">Play Again</button>
+                </div>
+            `;
+            resultDiv.style.display = 'block';
+            
+            showNotification(result.message, result.is_correct ? 'success' : 'error');
+        }
+        
+        async function loadGameStats() {
+            try {
+                const response = await fetch(`/game/stats/${currentUserId}`);
+                const stats = await response.json();
+                
+                const container = document.getElementById('gameStats');
+                container.innerHTML = `
+                    <div class="game-stats-card">
+                        <h4>🎮 Your Gaming Progress</h4>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-value">${stats.total_points}</span>
+                                <span class="stat-label">Total Points</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">${stats.challenges_completed}</span>
+                                <span class="stat-label">Challenges Completed</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">${stats.current_streak}</span>
+                                <span class="stat-label">Current Streak</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">${stats.best_streak}</span>
+                                <span class="stat-label">Best Streak</span>
+                            </div>
+                        </div>
+                        
+                        <div class="level-progress">
+                            <h5>Level ${stats.level}</h5>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${stats.progress_to_next_level}%"></div>
+                            </div>
+                            <p>${stats.progress_to_next_level}% to Level ${stats.level + 1}</p>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                showNotification('Failed to load game stats', 'error');
+            }
+        }
+        
+        async function loadLeaderboard() {
+            try {
+                const response = await fetch('/game/leaderboard');
+                const data = await response.json();
+                
+                const container = document.getElementById('leaderboard');
+                container.innerHTML = '<h4>🏆 Top Players</h4>';
+                
+                if (data.leaderboard && data.leaderboard.length > 0) {
+                    const table = document.createElement('div');
+                    table.className = 'leaderboard-table';
+                    
+                    data.leaderboard.forEach(player => {
+                        const row = document.createElement('div');
+                        row.className = 'leaderboard-row';
+                        row.innerHTML = `
+                            <span class="rank">#${player.rank}</span>
+                            <span class="player">${player.user_id}</span>
+                            <span class="points">${player.total_points} pts</span>
+                            <span class="level">Lv.${player.level}</span>
+                        `;
+                        table.appendChild(row);
+                    });
+                    
+                    container.appendChild(table);
+                } else {
+                    container.innerHTML += '<p>No players yet. Be the first!</p>';
+                }
+            } catch (error) {
+                showNotification('Failed to load leaderboard', 'error');
+            }
+        }
+        
+        function resetChallenge() {
+            // Clear current challenge state
+            currentChallenge = null;
+            if (challengeTimer) {
+                clearInterval(challengeTimer);
+                challengeTimer = null;
+            }
+            
+            // Hide challenge area and show difficulty selector
+            document.getElementById('challengeArea').style.display = 'none';
+            document.getElementById('challengeResult').style.display = 'none';
+            
+            // Re-enable option buttons for next challenge
+            document.querySelectorAll('.option-btn').forEach(btn => {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            });
+            
+            // Reset timer display
+            document.getElementById('timer').style.color = '#28a745';
         }
     </script>
 </body>

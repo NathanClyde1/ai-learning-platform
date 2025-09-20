@@ -5,6 +5,7 @@ from werkzeug.utils import secure_filename
 from s3_database import S3Database
 from ai_providers import AIProvider
 from knowledge_barter import KnowledgeBarterSystem
+from game_system import GameSystem
 try:
     import PyPDF2
 except ImportError:
@@ -31,9 +32,10 @@ class AILearningPlatform:
         self.ai_provider = AIProvider()
         self.s3_db = S3Database()
         self.barter_system = KnowledgeBarterSystem()
+        self.game_system = GameSystem()
         
-        # Using Gemini AI provider with S3 database and Knowledge Barter
-        print("AI Learning Platform initialized with Gemini AI, S3 database, and Knowledge Barter System")
+        # Using Gemini AI provider with S3 database, Knowledge Barter, and Game System
+        print("AI Learning Platform initialized with Gemini AI, S3 database, Knowledge Barter, and Game System")
         
     def extract_text_from_file(self, filepath):
         """Extract text from uploaded files"""
@@ -344,6 +346,57 @@ def get_user_stats(user_id):
     try:
         stats = platform.barter_system.get_user_stats(user_id)
         return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+# Game System Routes
+@app.route('/game/challenge/<difficulty>')
+@app.route('/game/challenge/<difficulty>/<category>')
+def get_challenge(difficulty, category=None):
+    try:
+        challenge = platform.game_system.get_random_challenge(difficulty, category)
+        if challenge:
+            # Don't send correct answer to frontend
+            challenge.pop('correct_answer', None)
+            return jsonify(challenge)
+        return jsonify({'error': 'No challenges available'})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/game/categories')
+def get_categories():
+    try:
+        categories = platform.game_system.get_categories()
+        return jsonify({'categories': categories})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/game/submit', methods=['POST'])
+def submit_challenge():
+    try:
+        user_id = request.form.get('user_id')
+        challenge_id = request.form.get('challenge_id')
+        answer = request.form.get('answer')
+        time_taken = int(request.form.get('time_taken', 0))
+        
+        result = platform.game_system.submit_answer(user_id, challenge_id, answer, time_taken)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/game/stats/<user_id>')
+def get_game_stats(user_id):
+    try:
+        stats = platform.game_system.get_player_stats(user_id)
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/game/leaderboard')
+def get_leaderboard():
+    try:
+        leaderboard = platform.game_system.get_leaderboard()
+        return jsonify({'leaderboard': leaderboard})
     except Exception as e:
         return jsonify({'error': str(e)})
 

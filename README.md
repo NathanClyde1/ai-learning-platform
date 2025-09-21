@@ -7,8 +7,7 @@ A minimal AI-driven platform that simplifies complex topics and supports multipl
 - **AI-Driven Explanations**: Uses Google Gemini to explain any topic
 - **Multiple Learning Formats**:
   - 💬 Chat: Conversational explanations
-  - ✏️ Sketch: Visual descriptions and diagrams
-  - 🎥 Video: Script format with timestamps
+  - ✏️ Visual: AI-generated diagrams and images
   - 📚 E-book: Structured chapters with examples
 - **Adaptive Learning Levels**: Beginner, Intermediate, Advanced
 - **Document Upload**: Upload PDFs, DOCX, or TXT files for context
@@ -32,15 +31,19 @@ A minimal AI-driven platform that simplifies complex topics and supports multipl
    ```bash
    cp .env.example .env
    ```
-   Edit `.env` and add your Google Gemini API key:
+   Edit `.env` and add your AWS credentials:
    ```
-   GEMINI_API_KEY=your_actual_api_key_here
+   AWS_ACCESS_KEY_ID=your_access_key
+   AWS_SECRET_ACCESS_KEY=your_secret_key
+   AWS_REGION=us-east-1
+   S3_BUCKET_NAME=your_bucket_name
+   YOUTUBE_API_KEY=your_youtube_key
    ```
 
-4. **Get a free Gemini API key**:
-   - Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
-   - Create a free API key
-   - Add it to your `.env` file
+4. **Set up AWS access**:
+   - Configure AWS credentials with Bedrock access
+   - Ensure Nova Pro and Nova Canvas permissions
+   - Create an S3 bucket for file storage
 
 5. **Run the application**:
    ```bash
@@ -53,8 +56,8 @@ A minimal AI-driven platform that simplifies complex topics and supports multipl
 ## Usage
 
 1. Enter any topic you want to learn about
-2. Select your learning level (Beginner/Intermediate/Advanced)
-3. Choose your preferred format (Chat/Sketch/Video/E-book)
+2. Select your learning level (Primary/Secondary/Foundation/Degree)
+3. Choose your preferred format (Chat/Visual/E-book)
 4. Optionally upload documents for additional context
 5. Get AI-generated, personalized learning content
 
@@ -92,8 +95,9 @@ The platform uses Google Gemini AI for unlimited topic coverage. When a topic is
 
 ## Technologies Used
 
-- **Backend**: Flask, SQLite, Google Gemini AI
+- **Backend**: Flask, AWS Bedrock (Nova Pro)
 - **Frontend**: HTML5, CSS3, JavaScript
+- **AI Services**: AWS Nova Canvas (images), AWS Transcribe, AWS S3
 - **File Processing**: PyPDF2, python-docx
 - **Environment**: python-dotenv
 

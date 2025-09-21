@@ -21,14 +21,20 @@
                 <div class="upload-section">
                     <input type="file" id="document" accept=".txt,.pdf,.docx" multiple>
                     <label for="document">📄 Upload supporting documents (optional)</label>
-                    <button type="button" id="clearFiles" class="clear-files-btn" style="display: none;">✕ Clear Files</button>
+                    <div class="file-actions">
+                        <button type="button" id="clearFiles" class="clear-files-btn" style="display: none;">✕ Clear Files</button>
+                        <button class="format-btn ebook-btn" id="summaryBtn" onclick="learn('ebook')" style="display: none;">
+                            📚 Summary
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="controls">
                     <select id="level">
-                        <option value="beginner">🌱 Beginner</option>
-                        <option value="intermediate">🚀 Intermediate</option>
-                        <option value="advanced">🎯 Advanced</option>
+                        <option value="primary">🌈 Primary (Year 1-6)</option>
+                        <option value="secondary">🎓 Secondary (Form 1-5)</option>
+                        <option value="foundation">🎆 Foundation/Pre-U</option>
+                        <option value="degree">🏫 Degree Level</option>
                     </select>
                     
                     <div class="format-grid">
@@ -41,18 +47,19 @@
                         <button class="format-btn video-btn" onclick="learn('video')">
                             🎥 Video
                         </button>
-                        <button class="format-btn ebook-btn" onclick="learn('ebook')">
+                        <button class="format-btn ebook-btn" id="summaryBtn" onclick="learn('ebook')" style="display: none;">
                             📚 Summary
                         </button>
 
-                        <button class="format-btn mindmap-btn" onclick="learn('mindmap')">
-                            🧠 Mind Map
-                        </button>
-                        <button class="format-btn barter-btn" onclick="toggleBarterSystem()">
+
+                        <button class="format-btn barter-btn" onclick="showTeachBack()">
                             🤝 Teach Back
                         </button>
-                        <button class="format-btn game-btn" onclick="toggleGameSystem()">
+                        <button class="format-btn game-btn" onclick="showChallenges()">
                             🎮 Challenges
+                        </button>
+                        <button class="format-btn flashcard-btn" onclick="showFlashcards()">
+                            📚 Flashcards
                         </button>
                     </div>
                 </div>
@@ -174,7 +181,8 @@
             const level = document.getElementById('level').value;
             const files = document.getElementById('document').files;
             
-            if (!topic.trim()) {
+            // Allow empty topic if files are uploaded and format is ebook (summary)
+            if (!topic.trim() && (files.length === 0 || format !== 'ebook')) {
                 showNotification('Please enter a topic to learn about!', 'error');
                 return;
             }
@@ -184,7 +192,7 @@
             document.getElementById('result').classList.remove('show');
             
             const formData = new FormData();
-            formData.append('topic', topic);
+            formData.append('topic', topic || 'Document Summary');
             formData.append('level', level);
             formData.append('format', format);
             
@@ -214,6 +222,16 @@
                     'ebook': '📚',
                     'mindmap': '🧠'
                 };
+                
+                // Special handling for visual format with mermaid diagrams
+                if (result.content.includes('```mermaid')) {
+                    // Extract mermaid code and render it
+                    const mermaidMatch = result.content.match(/```mermaid([\s\S]*?)```/);
+                    if (mermaidMatch) {
+                        const mermaidCode = mermaidMatch[1].trim();
+                        result.content = result.content.replace(/```mermaid[\s\S]*?```/, `<div class="mermaid">${mermaidCode}</div>`);
+                    }
+                }
                 
 
                 
@@ -251,6 +269,7 @@
             const files = e.target.files;
             const label = document.querySelector('label[for="document"]');
             const clearBtn = document.getElementById('clearFiles');
+            const summaryBtn = document.getElementById('summaryBtn');
             
             if (files.length > 0) {
                 const fileNames = Array.from(files).map(f => f.name).join(', ');
@@ -259,12 +278,14 @@
                 label.style.borderColor = '#4caf50';
                 label.style.color = '#2e7d32';
                 clearBtn.style.display = 'inline-block';
+                summaryBtn.style.display = 'inline-block';
             } else {
                 label.innerHTML = '📄 Upload supporting documents (optional)';
                 label.style.backgroundColor = '';
                 label.style.borderColor = '';
                 label.style.color = '';
                 clearBtn.style.display = 'none';
+                summaryBtn.style.display = 'none';
             }
         });
         
@@ -278,6 +299,7 @@
             const fileInput = document.getElementById('document');
             const label = document.querySelector('label[for="document"]');
             const clearBtn = document.getElementById('clearFiles');
+            const summaryBtn = document.getElementById('summaryBtn');
             
             fileInput.value = '';
             label.innerHTML = '📄 Upload supporting documents (optional)';
@@ -285,6 +307,7 @@
             label.style.borderColor = '';
             label.style.color = '';
             clearBtn.style.display = 'none';
+            summaryBtn.style.display = 'none';
         });
         
         // Notification System
@@ -304,9 +327,47 @@
         let isRecording = false;
         let currentUserId = 'user_' + Math.random().toString(36).substr(2, 9); // Persistent user ID
         
-        function toggleBarterSystem() {
-            const barterDiv = document.getElementById('barterSystem');
-            barterDiv.style.display = barterDiv.style.display === 'none' ? 'block' : 'none';
+        function showTeachBack() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = 'result-area format-barter';
+            
+            resultDiv.innerHTML = `
+                <h3>🤝 TEACH BACK - Community Knowledge Barter</h3>
+                
+                <div class="barter-tabs">
+                    <button class="tab-btn active" onclick="showBarterTab('teach')">Teach Back</button>
+                    <button class="tab-btn" onclick="showBarterTab('borrow')">Community Posts</button>
+                    <button class="tab-btn" onclick="showBarterTab('stats')">My Points</button>
+                </div>
+                
+                <!-- Teach Back Tab -->
+                <div id="teachTab" class="barter-tab">
+                    <div class="record-section">
+                        <p>Record your explanation of the topic:</p>
+                        <button id="recordBtn" onclick="toggleRecording()">🎤 Start Recording</button>
+                        <div id="recordingStatus"></div>
+                        <textarea id="transcriptArea" placeholder="Or type your explanation here..." rows="4"></textarea>
+                        <button onclick="submitExplanation()">Submit for AI Scoring</button>
+                    </div>
+                </div>
+                
+                <!-- Community Posts Tab -->
+                <div id="borrowTab" class="barter-tab" style="display: none;">
+                    <div id="communityExplanations"></div>
+                    <button onclick="loadCommunityExplanations()">Load Community Posts</button>
+                    <button onclick="loadAllExplanations()">Show All Posts</button>
+                </div>
+                
+                <!-- Stats Tab -->
+                <div id="statsTab" class="barter-tab" style="display: none;">
+                    <div id="userStats"></div>
+                    <button onclick="loadUserStats()">Refresh Stats</button>
+                </div>
+            `;
+            
+            setTimeout(() => {
+                resultDiv.classList.add('show');
+            }, 100);
         }
         
         function showBarterTab(tabName) {
@@ -348,9 +409,32 @@
             }
         }
         
-        function transcribeAudio(audioBlob) {
-            // Simple fallback - in real implementation, use speech-to-text API
-            document.getElementById('recordingStatus').textContent = 'Audio recorded! Please type your explanation in the text area.';
+        async function transcribeAudio(audioBlob) {
+            const status = document.getElementById('recordingStatus');
+            status.textContent = 'Transcribing audio with AWS Transcribe...';
+            
+            try {
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.wav');
+                
+                const response = await fetch('/transcribe_audio', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('transcriptArea').value = result.transcript;
+                    status.textContent = 'Audio transcribed successfully! Review and submit your explanation.';
+                } else {
+                    status.textContent = 'Transcription failed. Please type your explanation manually.';
+                    showNotification('Transcription error: ' + result.error, 'error');
+                }
+            } catch (error) {
+                status.textContent = 'Transcription failed. Please type your explanation manually.';
+                showNotification('Failed to transcribe audio', 'error');
+            }
         }
         
         async function submitExplanation() {
@@ -517,14 +601,79 @@
         let timeRemaining = 0;
         let startTime = 0;
         
-        function toggleGameSystem() {
-            const gameDiv = document.getElementById('gameSystem');
-            if (gameDiv.style.display === 'none') {
-                gameDiv.style.display = 'block';
-                loadCategories(); // Load categories when opening game system
-            } else {
-                gameDiv.style.display = 'none';
-            }
+        function showChallenges() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = 'result-area format-game';
+            
+            resultDiv.innerHTML = `
+                <h3>🎮 CHALLENGES - Gamified Learning</h3>
+                
+                <div class="game-tabs">
+                    <button class="tab-btn active" onclick="showGameTab('play')">Play Challenge</button>
+                    <button class="tab-btn" onclick="showGameTab('stats')">My Progress</button>
+                    <button class="tab-btn" onclick="showGameTab('leaderboard')">Leaderboard</button>
+                </div>
+                
+                <!-- Play Challenge Tab -->
+                <div id="playTab" class="game-tab">
+                    <div class="category-selector">
+                        <h4>Choose Category:</h4>
+                        <div class="custom-dropdown">
+                            <div class="dropdown-selected" id="dropdownSelected">
+                                <span>All Categories</span>
+                                <span class="dropdown-arrow">▼</span>
+                            </div>
+                            <div class="dropdown-options" id="dropdownOptions">
+                                <div class="dropdown-option" data-value="">All Categories</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="difficulty-selector">
+                        <h4>Choose Difficulty:</h4>
+                        <div class="difficulty-buttons">
+                            <button class="difficulty-btn" onclick="startChallenge('primary')">🌈 Primary</button>
+                            <button class="difficulty-btn" onclick="startChallenge('secondary')">🎓 Secondary</button>
+                            <button class="difficulty-btn" onclick="startChallenge('foundation')">🎆 Foundation</button>
+                            <button class="difficulty-btn" onclick="startChallenge('degree')">🏫 Degree</button>
+                        </div>
+                    </div>
+                    
+                    <div id="challengeArea" class="challenge-area" style="display: none;">
+                        <div class="challenge-header">
+                            <h4 id="challengeTitle"></h4>
+                            <div class="timer-points">
+                                <span id="timer">⏱️ 30s</span>
+                                <span id="pointsDisplay">📎 0 pts</span>
+                            </div>
+                        </div>
+                        
+                        <div class="challenge-content">
+                            <p id="challengeQuestion"></p>
+                            <div id="challengeOptions" class="options-grid"></div>
+                        </div>
+                        
+                        <div class="challenge-result" id="challengeResult" style="display: none;"></div>
+                    </div>
+                </div>
+                
+                <!-- Progress Tab -->
+                <div id="gameStatsTab" class="game-tab" style="display: none;">
+                    <div id="gameStats"></div>
+                    <button onclick="loadGameStats()">Refresh Progress</button>
+                </div>
+                
+                <!-- Leaderboard Tab -->
+                <div id="leaderboardTab" class="game-tab" style="display: none;">
+                    <div id="leaderboard"></div>
+                    <button onclick="loadLeaderboard()">Refresh Leaderboard</button>
+                </div>
+            `;
+            
+            setTimeout(() => {
+                resultDiv.classList.add('show');
+                loadCategories(); // Load categories when showing challenges
+            }, 100);
         }
         
         let selectedCategory = '';
@@ -535,16 +684,34 @@
                 const data = await response.json();
                 
                 const optionsContainer = document.getElementById('dropdownOptions');
+                if (!optionsContainer) {
+                    console.error('Dropdown options container not found');
+                    return;
+                }
+                
                 optionsContainer.innerHTML = '<div class="dropdown-option" data-value="">All Categories</div>';
                 
-                data.categories.forEach(category => {
-                    const option = document.createElement('div');
-                    option.className = 'dropdown-option';
-                    option.setAttribute('data-value', category);
-                    option.textContent = category;
-                    option.onclick = () => selectCategory(category, category);
-                    optionsContainer.appendChild(option);
-                });
+                if (data.categories && data.categories.length > 0) {
+                    data.categories.forEach(category => {
+                        const option = document.createElement('div');
+                        option.className = 'dropdown-option';
+                        option.setAttribute('data-value', category);
+                        option.textContent = category;
+                        option.onclick = () => selectCategory(category, category);
+                        optionsContainer.appendChild(option);
+                    });
+                } else {
+                    // Add default categories if none loaded
+                    const defaultCategories = ['Mathematics', 'Science', 'English', 'History', 'Geography', 'Programming'];
+                    defaultCategories.forEach(category => {
+                        const option = document.createElement('div');
+                        option.className = 'dropdown-option';
+                        option.setAttribute('data-value', category);
+                        option.textContent = category;
+                        option.onclick = () => selectCategory(category, category);
+                        optionsContainer.appendChild(option);
+                    });
+                }
                 
                 // Add click handler for "All Categories"
                 optionsContainer.firstChild.onclick = () => selectCategory('', 'All Categories');
@@ -554,6 +721,22 @@
                 
             } catch (error) {
                 console.error('Failed to load categories:', error);
+                // Add default categories on error
+                const optionsContainer = document.getElementById('dropdownOptions');
+                if (optionsContainer) {
+                    const defaultCategories = ['Mathematics', 'Science', 'English', 'History', 'Geography', 'Programming'];
+                    optionsContainer.innerHTML = '<div class="dropdown-option" data-value="">All Categories</div>';
+                    defaultCategories.forEach(category => {
+                        const option = document.createElement('div');
+                        option.className = 'dropdown-option';
+                        option.setAttribute('data-value', category);
+                        option.textContent = category;
+                        option.onclick = () => selectCategory(category, category);
+                        optionsContainer.appendChild(option);
+                    });
+                    optionsContainer.firstChild.onclick = () => selectCategory('', 'All Categories');
+                    setupDropdown();
+                }
             }
         }
         
@@ -607,6 +790,7 @@
                 startTimer(challenge.time_limit);
                 
             } catch (error) {
+                console.error('Challenge error:', error);
                 showNotification('Failed to load challenge', 'error');
             }
         }
@@ -692,17 +876,20 @@
         
         function displayResult(result) {
             const resultDiv = document.getElementById('challengeResult');
+            const pointsEarned = result.points_earned || 0;
+            const message = result.message || 'Challenge completed';
+            
             resultDiv.innerHTML = `
                 <div class="result-content ${result.is_correct ? 'correct' : 'incorrect'}">
                     <h4>${result.is_correct ? '✅ Correct!' : '❌ Incorrect'}</h4>
-                    <p>${result.message}</p>
-                    <p><strong>Points Earned:</strong> ${result.points_earned}</p>
+                    <p>${message}</p>
+                    <p><strong>Points Earned:</strong> ${pointsEarned}</p>
                     <button onclick="resetChallenge()" class="play-again-btn">Play Again</button>
                 </div>
             `;
             resultDiv.style.display = 'block';
             
-            showNotification(result.message, result.is_correct ? 'success' : 'error');
+            showNotification(message, result.is_correct ? 'success' : 'error');
         }
         
         async function loadGameStats() {
@@ -800,6 +987,134 @@
             
             // Reset timer display
             document.getElementById('timer').style.color = '#28a745';
+        }
+        
+        // Flashcard System Functions
+        let currentFlashcards = [];
+        let currentCardIndex = 0;
+        let isFlipped = false;
+        
+        function showFlashcards() {
+            const topic = document.getElementById('topic').value;
+            const level = document.getElementById('level').value;
+            
+            if (!topic.trim()) {
+                showNotification('Please enter a topic to generate flashcards!', 'error');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = 'result-area format-flashcard';
+            
+            resultDiv.innerHTML = `
+                <h3>📚 FLASHCARDS - Study & Review</h3>
+                
+                <div class="flashcard-controls">
+                    <button onclick="generateFlashcards()" class="generate-btn">Generate Flashcards</button>
+                    <span class="card-counter" id="cardCounter">0 / 0</span>
+                </div>
+                
+                <div id="flashcardArea" class="flashcard-area" style="display: none;">
+                    <div class="flashcard" id="flashcard" onclick="flipCard()">
+                        <div class="flashcard-inner">
+                            <div class="flashcard-front">
+                                <div class="card-content" id="cardFront"></div>
+                                <div class="flip-hint">Click to flip</div>
+                            </div>
+                            <div class="flashcard-back">
+                                <div class="card-content" id="cardBack"></div>
+                                <div class="flip-hint">Click to flip back</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flashcard-navigation">
+                        <button onclick="previousCard()" id="prevBtn" disabled>← Previous</button>
+                        <button onclick="nextCard()" id="nextBtn" disabled>Next →</button>
+                    </div>
+                </div>
+            `;
+            
+            setTimeout(() => {
+                resultDiv.classList.add('show');
+            }, 100);
+        }
+        
+        async function generateFlashcards() {
+            const topic = document.getElementById('topic').value;
+            const level = document.getElementById('level').value;
+            
+            try {
+                showNotification('Generating flashcards...', 'info');
+                
+                const response = await fetch('/generate_flashcards', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        topic: topic,
+                        level: level
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentFlashcards = result.flashcards;
+                    currentCardIndex = 0;
+                    displayFlashcards();
+                    showNotification(`Generated ${currentFlashcards.length} flashcards!`, 'success');
+                } else {
+                    showNotification('Failed to generate flashcards', 'error');
+                }
+            } catch (error) {
+                showNotification('Error generating flashcards', 'error');
+            }
+        }
+        
+        function displayFlashcards() {
+            if (currentFlashcards.length === 0) return;
+            
+            document.getElementById('flashcardArea').style.display = 'block';
+            
+            const card = currentFlashcards[currentCardIndex];
+            document.getElementById('cardFront').textContent = card.question;
+            document.getElementById('cardBack').textContent = card.answer;
+            document.getElementById('cardCounter').textContent = `${currentCardIndex + 1} / ${currentFlashcards.length}`;
+            
+            // Reset flip state
+            isFlipped = false;
+            document.getElementById('flashcard').classList.remove('flipped');
+            
+            // Update navigation buttons
+            document.getElementById('prevBtn').disabled = currentCardIndex === 0;
+            document.getElementById('nextBtn').disabled = currentCardIndex === currentFlashcards.length - 1;
+        }
+        
+        function flipCard() {
+            const flashcard = document.getElementById('flashcard');
+            isFlipped = !isFlipped;
+            
+            if (isFlipped) {
+                flashcard.classList.add('flipped');
+            } else {
+                flashcard.classList.remove('flipped');
+            }
+        }
+        
+        function previousCard() {
+            if (currentCardIndex > 0) {
+                currentCardIndex--;
+                displayFlashcards();
+            }
+        }
+        
+        function nextCard() {
+            if (currentCardIndex < currentFlashcards.length - 1) {
+                currentCardIndex++;
+                displayFlashcards();
+            }
         }
     </script>
 </body>

@@ -2,12 +2,12 @@ import sqlite3
 import json
 import os
 from datetime import datetime
-from ai_providers import AIProvider
+from bedrock_provider import BedrockProvider
 
 class KnowledgeBarterSystem:
     def __init__(self):
         self.db_path = 'knowledge_barter.db'
-        self.ai_provider = AIProvider()
+        self.ai_provider = BedrockProvider()
         self.init_database()
     
     def init_database(self):

@@ -2,12 +2,12 @@ import sqlite3
 import json
 import random
 from datetime import datetime, timedelta
-from ai_providers import AIProvider
+from bedrock_provider import BedrockProvider
 
 class GameSystem:
     def __init__(self):
         self.db_path = 'game_system.db'
-        self.ai_provider = AIProvider()
+        self.ai_provider = BedrockProvider()
         self.init_database()
         self.load_challenges()
     

@@ -1,11 +1,10 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
-from s3_database import S3Database
-from ai_providers import AIProvider
-from knowledge_barter import KnowledgeBarterSystem
-from game_system import GameSystem
+from s3_storage import S3Storage
+from bedrock_provider import BedrockProvider
 try:
     import PyPDF2
 except ImportError:
@@ -29,13 +28,28 @@ class AILearningPlatform:
     def __init__(self):
         self.learning_formats = ['chat', 'sketch', 'video', 'ebook']
         self.bedrock_available = False
-        self.ai_provider = AIProvider()
-        self.s3_db = S3Database()
-        self.barter_system = KnowledgeBarterSystem()
-        self.game_system = GameSystem()
+        self.ai_provider = BedrockProvider()
+        self.s3_storage = S3Storage()
         
-        # Using Gemini AI provider with S3 database, Knowledge Barter, and Game System
-        print("AI Learning Platform initialized with Gemini AI, S3 database, Knowledge Barter, and Game System")
+        # Initialize AWS Transcribe
+        try:
+            import boto3
+            # Use ap-southeast-1 to match S3 bucket region
+            transcribe_region = 'ap-southeast-1'
+            self.transcribe_client = boto3.client(
+                'transcribe',
+                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+                region_name=transcribe_region
+            )
+            print(f"Transcribe client initialized in region: {transcribe_region}")
+            print("AWS Transcribe client initialized")
+        except Exception as e:
+            print(f"Failed to initialize Transcribe: {e}")
+            self.transcribe_client = None
+        
+        # Using AWS Bedrock Nova Pro with full S3 storage
+        print("AI Learning Platform initialized with AWS Bedrock Nova Pro and full S3 cloud storage")
         
     def extract_text_from_file(self, filepath):
         """Extract text from uploaded files"""
@@ -136,12 +150,14 @@ class AILearningPlatform:
         
         # Generic fallback responses for when AI fails
         topic_lower = topic.lower()
-        if complexity_level == 'beginner':
-            return f"{topic.capitalize()} is an important concept with practical applications. It involves understanding key principles and how they work together in real situations."
-        elif complexity_level == 'advanced':
-            return f"{topic.capitalize()} requires comprehensive analysis, theoretical understanding, and synthesis of complex interconnected concepts and methodologies."
-        else:
-            return f"{topic.capitalize()} involves multiple principles and concepts that work together, with practical applications and real-world implications."
+        if complexity_level == 'primary':
+            return f"{topic.capitalize()} is something really cool that we can learn about! It's like when you discover how things work around you, and it helps us understand our world better."
+        elif complexity_level == 'secondary':
+            return f"{topic.capitalize()} is an important concept that connects to many things we study. It involves understanding key principles and how they work together in real situations."
+        elif complexity_level == 'foundation':
+            return f"{topic.capitalize()} involves multiple principles and concepts that work together, with practical applications and real-world implications that are relevant to your studies."
+        else:  # degree
+            return f"{topic.capitalize()} requires comprehensive analysis, theoretical understanding, and synthesis of complex interconnected concepts and methodologies within its field of study."
         
         # Comprehensive topic-specific explanations
         explanations = {
@@ -184,28 +200,34 @@ class AILearningPlatform:
         business_keywords = ['marketing', 'finance', 'economics', 'business', 'management', 'strategy']
         
         if any(keyword in topic_lower for keyword in tech_keywords):
-            if complexity_level == 'beginner':
+            if complexity_level == 'primary':
+                return f"{topic.capitalize()} is like a smart helper that uses computers to solve problems! It's like having a robot friend that can think and help us do cool things."
+            elif complexity_level == 'secondary':
                 return f"{topic.capitalize()} is a technology concept that helps solve problems using computers and data. It involves step-by-step processes and logical thinking to create solutions."
-            elif complexity_level == 'advanced':
-                return f"{topic.capitalize()} involves complex computational algorithms, data structures, and systematic methodologies requiring deep technical understanding and implementation expertise."
-            else:
+            elif complexity_level == 'foundation':
                 return f"{topic.capitalize()} combines technical principles with practical applications, using structured approaches to process information and solve real-world problems."
+            else:  # degree
+                return f"{topic.capitalize()} involves complex computational algorithms, data structures, and systematic methodologies requiring deep technical understanding and implementation expertise."
         
         elif any(keyword in topic_lower for keyword in science_keywords):
-            if complexity_level == 'beginner':
+            if complexity_level == 'primary':
+                return f"{topic.capitalize()} is about how nature works! It's like being a detective and discovering cool secrets about the world around us."
+            elif complexity_level == 'secondary':
                 return f"{topic.capitalize()} is a scientific concept that explains how things work in nature. It helps us understand patterns and make predictions about the world around us."
-            elif complexity_level == 'advanced':
-                return f"{topic.capitalize()} encompasses rigorous scientific methodologies, mathematical modeling, and empirical research requiring analytical reasoning and theoretical frameworks."
-            else:
+            elif complexity_level == 'foundation':
                 return f"{topic.capitalize()} involves scientific principles and experimental methods to understand natural phenomena and their underlying mechanisms."
+            else:  # degree
+                return f"{topic.capitalize()} encompasses rigorous scientific methodologies, mathematical modeling, and empirical research requiring analytical reasoning and theoretical frameworks."
         
         elif any(keyword in topic_lower for keyword in business_keywords):
-            if complexity_level == 'beginner':
+            if complexity_level == 'primary':
+                return f"{topic.capitalize()} is about how people work together to make and sell things! It's like running a lemonade stand but bigger."
+            elif complexity_level == 'secondary':
                 return f"{topic.capitalize()} is about how organizations work and make decisions. It involves understanding people, money, and strategies to achieve goals."
-            elif complexity_level == 'advanced':
-                return f"{topic.capitalize()} requires strategic analysis, market dynamics understanding, and complex decision-making frameworks within competitive business environments."
-            else:
+            elif complexity_level == 'foundation':
                 return f"{topic.capitalize()} involves business principles, market analysis, and organizational strategies to create value and achieve objectives."
+            else:  # degree
+                return f"{topic.capitalize()} requires strategic analysis, market dynamics understanding, and complex decision-making frameworks within competitive business environments."
         
         # Generic fallback
         if complexity_level == 'beginner':
@@ -233,16 +255,11 @@ class AILearningPlatform:
             if not ai_content:
                 ai_content = f"Video content for {topic}"
         else:
-            # Try S3 database first for other formats
-            topic_data = self.s3_db.get_topic(topic)
-            if topic_data:
-                ai_content = topic_data['explanation']
-            else:
-                # Use AI for any topic (with or without context)
-                ai_content = self.ai_provider.get_ai_response(topic, complexity_level, format_type, context)
-                if not ai_content:
-                    # Final fallback to generic responses
-                    ai_content = self.get_smart_fallback(topic, complexity_level, format_type)
+            # Use AI for all content generation
+            ai_content = self.ai_provider.get_ai_response(topic, complexity_level, format_type, context)
+            if not ai_content:
+                # Final fallback to generic responses
+                ai_content = self.get_smart_fallback(topic, complexity_level, format_type)
         formatted_content = self.format_content(ai_content, format_type)
         
         return {
@@ -257,21 +274,133 @@ class AILearningPlatform:
             return f"{content}\n\n💬 Ready to dive deeper? What specific aspect interests you most?"
         
         elif format_type == 'sketch':
-            return f"{content}\n\n✏️ Visual tip: Try sketching the key components as you read!"
+            # Generate proper Mermaid flowchart for visual format
+            topic_name = getattr(request, 'form', {}).get('topic', 'Topic') if hasattr(request, 'form') else 'Topic'
+            
+            mindmap_content = f"```mermaid\nflowchart TD\n    A[{topic_name}]\n"
+            
+            # Extract key concepts from content
+            key_concepts = []
+            lines = content.split('\n')
+            for line in lines:
+                if any(word in line.lower() for word in ['what is', 'ingredients', 'process', 'step', 'example', 'tips']):
+                    clean_line = line.strip().replace('#', '').replace('*', '')[:25]
+                    if len(clean_line) > 5:
+                        key_concepts.append(clean_line)
+                if len(key_concepts) >= 6:
+                    break
+            
+            # Add branches
+            for i, concept in enumerate(key_concepts, 1):
+                letter = chr(65 + i)  # B, C, D, etc.
+                mindmap_content += f"    A --> {letter}[{concept}]\n"
+            
+            mindmap_content += "```\n\n"
+            
+            return f"{mindmap_content}\n\n<div class='mindmap-tips'><h4>💡 Visual Mind Map:</h4><p>This diagram shows key concepts connected to the main topic. Follow the arrows to understand the relationships.</p></div>\n\n{content}\n\n✏️ Visual tip: Try sketching the key components as you read!"
         
         elif format_type == 'video':
-            sentences = content.split('. ')
-            if len(sentences) >= 3:
-                return f"🎥 [00:00] {sentences[0]}.\n\n[00:30] {sentences[1]}.\n\n[01:00] {sentences[2] if len(sentences) > 2 else sentences[-1]}."
-            return f"🎥 [00:00] {content}"
+            # Video format is already handled by Polly integration
+            return content
         
         elif format_type == 'ebook':
-            return f"📚 **Comprehensive Summary**\n\n{content}\n\n**Key Takeaways:**\n• Main concepts covered\n• Important details\n• Practical applications"
+            return f"<h2>📚 Document Summary</h2>\n\n{content}"
         
         elif format_type == 'mindmap':
-            return f"🧠 **Mind Map Structure**\n\n{content}\n\n💡 Tip: Visualize this as a branching diagram with the main topic at center!"
+            # Generate Mermaid mindmap syntax
+            lines = content.split('\n')
+            mindmap_content = f"```mermaid\nmindmap\n  root)({topic})\n"
+            
+            # Simple conversion to mindmap structure
+            for line in lines[:8]:  # Limit to 8 main branches
+                if line.strip() and len(line.strip()) > 3:
+                    clean_line = line.strip()[:30]  # Limit length
+                    mindmap_content += f"    {clean_line}\n"
+            
+            mindmap_content += "```\n\n"
+            
+            return f"{mindmap_content}\n\n<div class='mindmap-tips'><h4>💡 Mind Map Tips:</h4><p>This visual diagram shows the main concepts branching from the central topic. Each branch represents a key aspect you should understand.</p></div>"
         
         return content
+    
+    def transcribe_audio(self, audio_url, filename):
+        """Transcribe audio using AWS Transcribe"""
+        if not self.transcribe_client:
+            return None
+            
+        try:
+            job_name = f"transcribe_{filename.replace('.', '_')}_{int(datetime.now().timestamp())}"
+            
+            # Start transcription job
+            print(f"Starting transcription job: {job_name}")
+            print(f"Audio URL: {audio_url}")
+            
+            self.transcribe_client.start_transcription_job(
+                TranscriptionJobName=job_name,
+                Media={'MediaFileUri': audio_url},
+                MediaFormat='wav',
+                LanguageCode='en-US'
+            )
+            print("Transcription job started successfully")
+            
+            # Wait for completion (polling)
+            import time
+            max_wait = 60  # Maximum 60 seconds
+            wait_time = 0
+            
+            while wait_time < max_wait:
+                response = self.transcribe_client.get_transcription_job(
+                    TranscriptionJobName=job_name
+                )
+                
+                status = response['TranscriptionJob']['TranscriptionJobStatus']
+                
+                if status == 'COMPLETED':
+                    # Get transcript
+                    transcript_uri = response['TranscriptionJob']['Transcript']['TranscriptFileUri']
+                    
+                    # Download and parse transcript
+                    import requests
+                    import json
+                    
+                    transcript_response = requests.get(transcript_uri)
+                    transcript_data = transcript_response.json()
+                    
+                    transcript_text = transcript_data['results']['transcripts'][0]['transcript']
+                    
+                    # Clean up job
+                    try:
+                        self.transcribe_client.delete_transcription_job(
+                            TranscriptionJobName=job_name
+                        )
+                    except:
+                        pass
+                    
+                    return transcript_text
+                    
+                elif status == 'FAILED':
+                    failure_reason = response['TranscriptionJob'].get('FailureReason', 'Unknown error')
+                    print(f"Transcription failed: {failure_reason}")
+                    return f"Transcription failed: {failure_reason}"
+                    
+                time.sleep(2)
+                wait_time += 2
+            
+            # Cleanup if job didn't complete
+            try:
+                self.transcribe_client.delete_transcription_job(
+                    TranscriptionJobName=job_name
+                )
+            except:
+                pass
+                
+            return None
+            
+        except Exception as e:
+            print(f"Transcription error: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"Error: {str(e)}"
 
 platform = AILearningPlatform()
 
@@ -309,6 +438,74 @@ def learn():
 def get_formats():
     return jsonify(platform.learning_formats)
 
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/generate_flashcards', methods=['POST'])
+def generate_flashcards():
+    try:
+        data = request.get_json()
+        topic = data.get('topic')
+        level = data.get('level')
+        
+        if not topic:
+            return jsonify({'success': False, 'error': 'Topic is required'})
+        
+        # Generate flashcards using AI
+        flashcards = platform.ai_provider.generate_flashcards(topic, level)
+        
+        if flashcards:
+            return jsonify({'success': True, 'flashcards': flashcards})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to generate flashcards'})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/transcribe_audio', methods=['POST'])
+def transcribe_audio():
+    try:
+        if 'audio' not in request.files:
+            return jsonify({'success': False, 'error': 'No audio file provided'})
+        
+        audio_file = request.files['audio']
+        if audio_file.filename == '':
+            return jsonify({'success': False, 'error': 'No audio file selected'})
+        
+        # Save audio file temporarily
+        filename = secure_filename(f"audio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
+        audio_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        audio_file.save(audio_path)
+        
+        # Upload to S3 for Transcribe
+        s3_key = f"audio/{filename}"
+        try:
+            platform.s3_storage.s3_client.upload_file(
+                audio_path, 
+                platform.s3_storage.bucket_name, 
+                s3_key
+            )
+            audio_url = f"s3://{platform.s3_storage.bucket_name}/{s3_key}"
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'S3 upload failed: {str(e)}'})
+        
+
+        
+        # Use AWS Transcribe
+        transcript = platform.transcribe_audio(audio_url, filename)
+        
+        # Clean up local file
+        os.remove(audio_path)
+        
+        if transcript:
+            return jsonify({'success': True, 'transcript': transcript})
+        else:
+            return jsonify({'success': False, 'error': 'Transcription failed'})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/submit_explanation', methods=['POST'])
 def submit_explanation():
     try:
@@ -317,7 +514,11 @@ def submit_explanation():
         level = request.form.get('level')
         transcript = request.form.get('transcript')
         
-        result = platform.barter_system.submit_explanation(user_id, topic, level, transcript)
+        # Get AI grading from Bedrock
+        ai_score = platform.ai_provider.grade_explanation(topic, level, transcript)
+        
+        # Submit to S3 with AI score
+        result = platform.s3_storage.submit_explanation(user_id, topic, level, transcript, ai_score)
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -325,7 +526,7 @@ def submit_explanation():
 @app.route('/community_explanations/<topic>')
 def get_community_explanations(topic):
     try:
-        explanations = platform.barter_system.get_community_explanations(topic)
+        explanations = platform.s3_storage.get_community_explanations(topic)
         return jsonify({'explanations': explanations})
     except Exception as e:
         return jsonify({'error': str(e)})
@@ -336,7 +537,7 @@ def upvote_explanation():
         user_id = request.form.get('user_id', 'anonymous')
         explanation_id = request.form.get('explanation_id')
         
-        result = platform.barter_system.upvote_explanation(user_id, explanation_id)
+        result = platform.s3_storage.upvote_explanation(user_id, explanation_id)
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -344,7 +545,7 @@ def upvote_explanation():
 @app.route('/user_stats/<user_id>')
 def get_user_stats(user_id):
     try:
-        stats = platform.barter_system.get_user_stats(user_id)
+        stats = platform.s3_storage.get_user_stats(user_id)
         return jsonify(stats)
     except Exception as e:
         return jsonify({'error': str(e)})
@@ -354,7 +555,7 @@ def get_user_stats(user_id):
 @app.route('/game/challenge/<difficulty>/<category>')
 def get_challenge(difficulty, category=None):
     try:
-        challenge = platform.game_system.get_random_challenge(difficulty, category)
+        challenge = platform.s3_storage.get_random_challenge(difficulty, category)
         if challenge:
             # Don't send correct answer to frontend
             challenge.pop('correct_answer', None)
@@ -366,7 +567,7 @@ def get_challenge(difficulty, category=None):
 @app.route('/game/categories')
 def get_categories():
     try:
-        categories = platform.game_system.get_categories()
+        categories = platform.s3_storage.get_categories()
         return jsonify({'categories': categories})
     except Exception as e:
         return jsonify({'error': str(e)})
@@ -379,7 +580,7 @@ def submit_challenge():
         answer = request.form.get('answer')
         time_taken = int(request.form.get('time_taken', 0))
         
-        result = platform.game_system.submit_answer(user_id, challenge_id, answer, time_taken)
+        result = platform.s3_storage.submit_challenge_answer(user_id, challenge_id, answer, time_taken)
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -387,7 +588,7 @@ def submit_challenge():
 @app.route('/game/stats/<user_id>')
 def get_game_stats(user_id):
     try:
-        stats = platform.game_system.get_player_stats(user_id)
+        stats = platform.s3_storage.get_player_stats(user_id)
         return jsonify(stats)
     except Exception as e:
         return jsonify({'error': str(e)})
@@ -395,7 +596,7 @@ def get_game_stats(user_id):
 @app.route('/game/leaderboard')
 def get_leaderboard():
     try:
-        leaderboard = platform.game_system.get_leaderboard()
+        leaderboard = platform.s3_storage.get_leaderboard()
         return jsonify({'leaderboard': leaderboard})
     except Exception as e:
         return jsonify({'error': str(e)})

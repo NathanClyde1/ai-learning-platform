@@ -202,6 +202,11 @@ body {
     color: white;
 }
 
+.flashcard-btn {
+    background: linear-gradient(135deg, #ff9a9e, #fecfef);
+    color: #333;
+}
+
 .format-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 10px 25px rgba(0,0,0,0.15);
@@ -820,6 +825,262 @@ body {
 .level {
     font-weight: bold;
     color: #007bff;
+}
+
+.file-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    align-items: center;
+}
+
+.file-actions .format-btn {
+    margin: 0;
+    padding: 8px 12px;
+    font-size: 12px;
+}
+
+.mindmap-btn {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+}
+
+/* Mind Map Styles */
+.format-mindmap {
+    background: linear-gradient(135deg, #f8f9ff, #e8f0ff);
+    border-left: 4px solid #667eea;
+}
+
+.format-barter {
+    background: linear-gradient(135deg, #fff8e1, #f3e5ab);
+    border-left: 4px solid #ff9800;
+}
+
+.format-game {
+    background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
+    border-left: 4px solid #4caf50;
+}
+
+.format-flashcard {
+    background: linear-gradient(135deg, #fff0f5, #ffe4e1);
+    border-left: 4px solid #ff69b4;
+}
+
+.format-game .game-tabs {
+    margin: 5px 0;
+}
+
+.format-game .category-selector,
+.format-game .difficulty-selector {
+    margin: 8px 0;
+}
+
+.format-game .category-selector h4,
+.format-game .difficulty-selector h4 {
+    margin: 5px 0;
+}
+
+.format-game .difficulty-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 5px;
+}
+
+.format-game .difficulty-btn {
+    padding: 12px 20px;
+    margin: 0;
+    font-size: 15px;
+    min-width: 120px;
+    font-weight: 500;
+}
+
+.format-game .challenge-area {
+    margin-top: 10px;
+}
+
+.format-game .challenge-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.format-game .timer-points {
+    display: flex;
+    gap: 10px;
+}
+
+.format-game .custom-dropdown {
+    margin-top: 5px;
+}
+
+.format-mindmap .mermaid {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 15px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+.mindmap-legend {
+    background: #f0f4ff;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+    border-left: 3px solid #667eea;
+}
+
+.mindmap-tips {
+    background: #fff8e1;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+    border-left: 3px solid #ffc107;
+}
+
+/* Flashcard Styles */
+.flashcard-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 20px 0;
+}
+
+.generate-btn {
+    background: linear-gradient(135deg, #ff9a9e, #fecfef);
+    color: #333;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.generate-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(255, 154, 158, 0.3);
+}
+
+.card-counter {
+    font-weight: bold;
+    color: #666;
+}
+
+.flashcard-area {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.flashcard {
+    width: 400px;
+    height: 250px;
+    margin: 20px auto;
+    perspective: 1000px;
+    cursor: pointer;
+}
+
+.flashcard-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+}
+
+.flashcard.flipped .flashcard-inner {
+    transform: rotateY(180deg);
+}
+
+.flashcard-front, .flashcard-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.flashcard-front {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+}
+
+.flashcard-back {
+    background: linear-gradient(135deg, #f093fb, #f5576c);
+    color: white;
+    transform: rotateY(180deg);
+}
+
+.card-content {
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.flip-hint {
+    position: absolute;
+    bottom: 10px;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.flashcard-navigation {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.flashcard-navigation button {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.flashcard-navigation button:hover:not(:disabled) {
+    background: #5a67d8;
+    transform: translateY(-1px);
+}
+
+.flashcard-navigation button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.submit-explanation-btn {
+    background: linear-gradient(135deg, #ff6b6b, #feca57);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 10px;
+}
+
+.submit-explanation-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(255, 107, 107, 0.3);
 }
 
 @keyframes spin {

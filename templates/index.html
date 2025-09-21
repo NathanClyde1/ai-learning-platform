@@ -5,9 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Learning Platform</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='figma-components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='figma-overrides.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
 </head>
 <body>
+    <!-- History Sidebar -->
+    <div class="sidebar persistent" id="historySidebar">
+        <div class="sidebar-header">
+            <h3>📚 Learning History</h3>
+        </div>
+        <div class="sidebar-content">
+            <div class="history-filters">
+                <button class="filter-btn active" onclick="filterHistory('all')">All</button>
+                <button class="filter-btn" onclick="filterHistory('today')">Today</button>
+                <button class="filter-btn" onclick="filterHistory('week')">Week</button>
+            </div>
+            <div id="historyList" class="history-list">
+                <p class="no-history">No learning history yet. Start exploring topics!</p>
+            </div>
+            <div class="sidebar-footer">
+                <button onclick="clearHistory()" class="clear-btn">Clear History</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
     <div class="container">
         <div class="header">
             <h1>🧠 AI Learning Platform</h1>
@@ -37,30 +60,54 @@
                         <option value="degree">🏫 Degree Level</option>
                     </select>
                     
-                    <div class="format-grid">
-                        <button class="format-btn chat-btn" onclick="learn('chat')">
-                            💬 Chat
-                        </button>
-                        <button class="format-btn sketch-btn" onclick="learn('sketch')">
-                            ✏️ Visual
-                        </button>
-                        <button class="format-btn video-btn" onclick="learn('video')">
-                            🎥 Video
-                        </button>
-                        <button class="format-btn ebook-btn" id="summaryBtn" onclick="learn('ebook')" style="display: none;">
-                            📚 Summary
-                        </button>
-
-
-                        <button class="format-btn barter-btn" onclick="showTeachBack()">
-                            🤝 Teach Back
-                        </button>
-                        <button class="format-btn game-btn" onclick="showChallenges()">
-                            🎮 Challenges
-                        </button>
-                        <button class="format-btn flashcard-btn" onclick="showFlashcards()">
-                            📚 Flashcards
-                        </button>
+                    <div class="format-sections">
+                        <!-- Learning Formats Section -->
+                        <div class="format-section">
+                            <h4 class="section-title">📖 Learning Formats</h4>
+                            <div class="format-grid">
+                                <button class="format-btn chat-btn" onclick="learn('chat')">
+                                    💬 Chat
+                                </button>
+                                <button class="format-btn sketch-btn" onclick="learn('visual')">
+                                    ✏️ Visual
+                                </button>
+                                <button class="format-btn video-btn" onclick="learn('video')">
+                                    🎥 Video
+                                </button>
+                                <button class="format-btn ebook-btn" id="summaryBtn" onclick="learn('ebook')" style="display: none;">
+                                    📚 Summary
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Study Methods Section -->
+                        <div class="format-section">
+                            <h4 class="section-title">🎓 Study Methods</h4>
+                            <div class="format-grid">
+                                <button class="format-btn barter-btn" onclick="showTeachBack()">
+                                    🤝 Teach Back
+                                </button>
+                                <button class="format-btn flashcard-btn" onclick="showFlashcards()">
+                                    📚 Flashcards
+                                </button>
+                                <button class="format-btn blurt-btn" onclick="showBlurting()">
+                                    📝 Blurting
+                                </button>
+                                <button class="format-btn forum-btn" onclick="showForum()">
+                                    💬 Study Forum
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Gamified Learning Section -->
+                        <div class="format-section">
+                            <h4 class="section-title">🎮 Gamified Learning</h4>
+                            <div class="format-grid">
+                                <button class="format-btn game-btn" onclick="showChallenges()">
+                                    🎮 Challenges
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -176,10 +223,157 @@
     </div>
 
     <script>
+        // History System Functions
+        let learningHistory = JSON.parse(localStorage.getItem('learningHistory') || '[]');
+        
+
+        
+        function addToHistory(topic, level, format) {
+            const historyItem = {
+                id: Date.now(),
+                topic: topic,
+                level: level,
+                format: format,
+                timestamp: new Date().toISOString(),
+                date: new Date().toLocaleDateString()
+            };
+            
+            // Remove duplicates and add to beginning
+            learningHistory = learningHistory.filter(item => 
+                !(item.topic === topic && item.level === level && item.format === format)
+            );
+            learningHistory.unshift(historyItem);
+            
+            // Keep only last 50 items
+            learningHistory = learningHistory.slice(0, 50);
+            
+            localStorage.setItem('learningHistory', JSON.stringify(learningHistory));
+            updateHistoryDisplay();
+        }
+        
+        function updateHistoryDisplay() {
+            const historyList = document.getElementById('historyList');
+            if (learningHistory.length === 0) {
+                historyList.innerHTML = '<p class="no-history">No learning history yet. Start exploring topics!</p>';
+                return;
+            }
+            
+            historyList.innerHTML = '';
+            learningHistory.forEach(item => {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'history-item';
+                historyItem.innerHTML = `
+                    <div class="history-content" onclick="loadFromHistory('${item.topic}', '${item.level}', '${item.format}')">
+                        <div class="history-topic">${item.topic}</div>
+                        <div class="history-meta">
+                            <span class="history-level">${item.level}</span>
+                            <span class="history-format">${getFormatEmoji(item.format)} ${item.format}</span>
+                        </div>
+                        <div class="history-date">${item.date}</div>
+                    </div>
+                    <button class="remove-history" onclick="removeFromHistory(${item.id})">×</button>
+                `;
+                historyList.appendChild(historyItem);
+            });
+        }
+        
+        function getFormatEmoji(format) {
+            const emojis = {
+                'chat': '💬',
+                'sketch': '✏️',
+                'video': '🎥',
+                'ebook': '📚',
+                'flashcards': '📚',
+                'blurting': '📝'
+            };
+            return emojis[format] || '💬';
+        }
+        
+        function loadFromHistory(topic, level, format) {
+            document.getElementById('topic').value = topic;
+            document.getElementById('level').value = level;
+            
+
+            
+            // Load the content
+            if (format === 'flashcards') {
+                showFlashcards();
+            } else if (format === 'blurting') {
+                showBlurting();
+            } else {
+                learn(format);
+            }
+        }
+        
+        function removeFromHistory(id) {
+            learningHistory = learningHistory.filter(item => item.id !== id);
+            localStorage.setItem('learningHistory', JSON.stringify(learningHistory));
+            updateHistoryDisplay();
+        }
+        
+        function filterHistory(filter) {
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            const now = new Date();
+            let filteredHistory = learningHistory;
+            
+            if (filter === 'today') {
+                const today = now.toLocaleDateString();
+                filteredHistory = learningHistory.filter(item => item.date === today);
+            } else if (filter === 'week') {
+                const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                filteredHistory = learningHistory.filter(item => new Date(item.timestamp) >= weekAgo);
+            }
+            
+            const historyList = document.getElementById('historyList');
+            if (filteredHistory.length === 0) {
+                historyList.innerHTML = `<p class="no-history">No learning history for ${filter}.</p>`;
+                return;
+            }
+            
+            historyList.innerHTML = '';
+            filteredHistory.forEach(item => {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'history-item';
+                historyItem.innerHTML = `
+                    <div class="history-content" onclick="loadFromHistory('${item.topic}', '${item.level}', '${item.format}')">
+                        <div class="history-topic">${item.topic}</div>
+                        <div class="history-meta">
+                            <span class="history-level">${item.level}</span>
+                            <span class="history-format">${getFormatEmoji(item.format)} ${item.format}</span>
+                        </div>
+                        <div class="history-date">${item.date}</div>
+                    </div>
+                    <button class="remove-history" onclick="removeFromHistory(${item.id})">×</button>
+                `;
+                historyList.appendChild(historyItem);
+            });
+        }
+        
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear all learning history?')) {
+                learningHistory = [];
+                localStorage.removeItem('learningHistory');
+                updateHistoryDisplay();
+                showNotification('Learning history cleared!', 'success');
+            }
+        }
+        
+        // Initialize history on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateHistoryDisplay();
+        });
+        
         async function learn(format) {
             const topic = document.getElementById('topic').value;
             const level = document.getElementById('level').value;
             const files = document.getElementById('document').files;
+            
+            // Add to history
+            if (topic.trim()) {
+                addToHistory(topic, level, format);
+            }
             
             // Allow empty topic if files are uploaded and format is ebook (summary)
             if (!topic.trim() && (files.length === 0 || format !== 'ebook')) {
@@ -217,7 +411,8 @@
                 
                 const formatEmojis = {
                     'chat': '💬',
-                    'sketch': '✏️', 
+                    'sketch': '✏️',
+                    'visual': '✏️',
                     'video': '🎥',
                     'ebook': '📚',
                     'mindmap': '🧠'
@@ -235,8 +430,9 @@
                 
 
                 
+                const formatName = format === 'sketch' ? 'VISUAL' : format.toUpperCase();
                 resultDiv.innerHTML = `
-                    <h3>${formatEmojis[format]} ${format.toUpperCase()} Format - ${level.charAt(0).toUpperCase() + level.slice(1)} Level</h3>
+                    <h3>${formatEmojis[format]} ${formatName} Format - ${level.charAt(0).toUpperCase() + level.slice(1)} Level</h3>
                     <div class="content">${result.content}</div>
                 `;
                 
@@ -1114,6 +1310,538 @@
             if (currentCardIndex < currentFlashcards.length - 1) {
                 currentCardIndex++;
                 displayFlashcards();
+            }
+        }
+        
+        // Blurting System Functions
+        let blurtingTimer = null;
+        let blurtingStartTime = 0;
+        
+        function showBlurting() {
+            const topic = document.getElementById('topic').value;
+            const level = document.getElementById('level').value;
+            
+            if (!topic.trim()) {
+                showNotification('Please enter a topic for blurting practice!', 'error');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = 'result-area format-blurt';
+            
+            resultDiv.innerHTML = `
+                <h3>📝 BLURTING MODE - Active Recall Practice</h3>
+                
+                <div class="blurt-instructions">
+                    <p><strong>How Blurting Works:</strong></p>
+                    <ul>
+                        <li>Write everything you know about "${topic}" without looking at notes</li>
+                        <li>Don't worry about organization - just brain dump!</li>
+                        <li>After finishing, AI will analyze what you missed</li>
+                        <li>Great for identifying knowledge gaps</li>
+                    </ul>
+                </div>
+                
+                <div class="blurt-controls">
+                    <button onclick="startBlurting()" class="start-blurt-btn" id="startBlurtBtn">Start Blurting Session</button>
+                    <div class="blurt-timer" id="blurtTimer" style="display: none;">
+                        <span>⏱️ Time: <span id="timeDisplay">00:00</span></span>
+                    </div>
+                </div>
+                
+                <div id="blurtArea" class="blurt-area" style="display: none;">
+                    <textarea id="blurtText" placeholder="Write everything you know about ${topic}...\n\nDon't think too much - just write whatever comes to mind!" rows="15"></textarea>
+                    
+                    <div class="blurt-actions">
+                        <button onclick="finishBlurting()" class="finish-blurt-btn">Finish & Get AI Analysis</button>
+                        <button onclick="resetBlurting()" class="reset-blurt-btn">Reset</button>
+                    </div>
+                </div>
+                
+                <div id="blurtAnalysis" class="blurt-analysis" style="display: none;"></div>
+            `;
+            
+            setTimeout(() => {
+                resultDiv.classList.add('show');
+            }, 100);
+        }
+        
+        function startBlurting() {
+            document.getElementById('startBlurtBtn').style.display = 'none';
+            document.getElementById('blurtTimer').style.display = 'block';
+            document.getElementById('blurtArea').style.display = 'block';
+            
+            // Focus on textarea
+            document.getElementById('blurtText').focus();
+            
+            // Start timer
+            blurtingStartTime = Date.now();
+            blurtingTimer = setInterval(updateBlurtTimer, 1000);
+            
+            showNotification('Blurting session started! Write everything you know.', 'info');
+        }
+        
+        function updateBlurtTimer() {
+            const elapsed = Math.floor((Date.now() - blurtingStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            document.getElementById('timeDisplay').textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        async function finishBlurting() {
+            const topic = document.getElementById('topic').value;
+            const level = document.getElementById('level').value;
+            const blurtText = document.getElementById('blurtText').value;
+            
+            if (!blurtText.trim()) {
+                showNotification('Please write something before finishing!', 'error');
+                return;
+            }
+            
+            // Stop timer
+            if (blurtingTimer) {
+                clearInterval(blurtingTimer);
+                blurtingTimer = null;
+            }
+            
+            const timeSpent = Math.floor((Date.now() - blurtingStartTime) / 1000);
+            
+            try {
+                showNotification('Analyzing your blurting session...', 'info');
+                
+                const response = await fetch('/analyze_blurting', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        topic: topic,
+                        level: level,
+                        blurt_text: blurtText,
+                        time_spent: timeSpent
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayBlurtAnalysis(result.analysis, timeSpent);
+                    showNotification('Analysis complete! Check your knowledge gaps.', 'success');
+                } else {
+                    showNotification('Failed to analyze blurting session', 'error');
+                }
+            } catch (error) {
+                showNotification('Error analyzing blurting session', 'error');
+            }
+        }
+        
+        function displayBlurtAnalysis(analysis, timeSpent) {
+            const minutes = Math.floor(timeSpent / 60);
+            const seconds = timeSpent % 60;
+            
+            document.getElementById('blurtAnalysis').innerHTML = `
+                <h4>📊 Blurting Analysis Results</h4>
+                <div class="analysis-stats">
+                    <p><strong>Time Spent:</strong> ${minutes}m ${seconds}s</p>
+                    <p><strong>Words Written:</strong> ${document.getElementById('blurtText').value.split(' ').length}</p>
+                </div>
+                <div class="analysis-content">
+                    ${analysis}
+                </div>
+                <button onclick="resetBlurting()" class="try-again-btn">Try Another Topic</button>
+            `;
+            document.getElementById('blurtAnalysis').style.display = 'block';
+        }
+        
+        function resetBlurting() {
+            if (blurtingTimer) {
+                clearInterval(blurtingTimer);
+                blurtingTimer = null;
+            }
+            
+            document.getElementById('startBlurtBtn').style.display = 'block';
+            document.getElementById('blurtTimer').style.display = 'none';
+            document.getElementById('blurtArea').style.display = 'none';
+            document.getElementById('blurtAnalysis').style.display = 'none';
+            document.getElementById('blurtText').value = '';
+            document.getElementById('timeDisplay').textContent = '00:00';
+        }
+        
+        // Study Forum Functions
+        function showForum() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = 'result-area format-forum';
+            
+            resultDiv.innerHTML = `
+                <h3>💬 STUDY FORUM - Learn Together</h3>
+                
+                <div class="forum-tabs">
+                    <button class="tab-btn active" onclick="showForumTab('discussions')">Discussions</button>
+                    <button class="tab-btn" onclick="showForumTab('leaderboard')">Leaderboard</button>
+                    <button class="tab-btn" onclick="showForumTab('create')">New Post</button>
+                </div>
+                
+                <!-- Discussions Tab -->
+                <div id="discussionsTab" class="forum-tab">
+                    <div class="forum-filters">
+                        <select id="topicFilter">
+                            <option value="">All Topics</option>
+                            <option value="mathematics">Mathematics</option>
+                            <option value="science">Science</option>
+                            <option value="programming">Programming</option>
+                            <option value="languages">Languages</option>
+                        </select>
+                        <select id="levelFilter">
+                            <option value="">All Levels</option>
+                            <option value="primary">Primary</option>
+                            <option value="secondary">Secondary</option>
+                            <option value="foundation">Foundation</option>
+                            <option value="degree">Degree</option>
+                        </select>
+                        <button onclick="loadForumThreads()">Refresh</button>
+                    </div>
+                    <div id="forumThreads" class="forum-threads"></div>
+                </div>
+                
+                <!-- Leaderboard Tab -->
+                <div id="forumLeaderboardTab" class="forum-tab" style="display: none;">
+                    <div class="leaderboard-filters">
+                        <select id="leaderboardFilter">
+                            <option value="all">All Time</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                        </select>
+                        <button onclick="loadForumLeaderboard()">Refresh</button>
+                    </div>
+                    <div id="leaderboardList" class="leaderboard-list"></div>
+                </div>
+                
+                <!-- Create Post Tab -->
+                <div id="createTab" class="forum-tab" style="display: none;">
+                    <div class="create-post">
+                        <input type="text" id="postTitle" placeholder="What's your question or topic?">
+                        <textarea id="postContent" placeholder="Describe your question, share knowledge, or start a discussion..." rows="6"></textarea>
+                        <div class="post-meta">
+                            <select id="postTopic">
+                                <option value="general">General</option>
+                                <option value="mathematics">Mathematics</option>
+                                <option value="science">Science</option>
+                                <option value="programming">Programming</option>
+                                <option value="languages">Languages</option>
+                            </select>
+                            <select id="postLevel">
+                                <option value="primary">Primary</option>
+                                <option value="secondary">Secondary</option>
+                                <option value="foundation">Foundation</option>
+                                <option value="degree">Degree</option>
+                            </select>
+                        </div>
+                        <button onclick="createForumPost()" class="create-post-btn">Post to Forum</button>
+                    </div>
+                </div>
+            `;
+            
+            setTimeout(() => {
+                resultDiv.classList.add('show');
+                loadForumThreads();
+            }, 100);
+        }
+        
+        function showForumTab(tabName) {
+            document.querySelectorAll('.forum-tab').forEach(tab => tab.style.display = 'none');
+            document.querySelectorAll('.forum-tabs .tab-btn').forEach(btn => btn.classList.remove('active'));
+            
+            if (tabName === 'discussions') {
+                document.getElementById('discussionsTab').style.display = 'block';
+            } else if (tabName === 'leaderboard') {
+                document.getElementById('forumLeaderboardTab').style.display = 'block';
+                loadForumLeaderboard();
+            } else if (tabName === 'create') {
+                document.getElementById('createTab').style.display = 'block';
+            }
+            event.target.classList.add('active');
+        }
+        
+        async function loadForumThreads() {
+            try {
+                const response = await fetch('/forum/threads');
+                const data = await response.json();
+                
+                const container = document.getElementById('forumThreads');
+                container.innerHTML = '';
+                
+                if (data.success && data.threads && data.threads.length > 0) {
+                    data.threads.forEach(thread => {
+                        const threadDiv = document.createElement('div');
+                        threadDiv.className = 'forum-thread';
+                        threadDiv.innerHTML = `
+                            <div class="thread-header">
+                                <h5 class="thread-title">${thread.title}</h5>
+                                <div class="thread-meta">
+                                    <span class="thread-topic">${thread.topic}</span>
+                                    <span class="thread-level">${thread.level}</span>
+                                    <span class="thread-date">${new Date(thread.created_at).toLocaleDateString()}</span>
+                                </div>
+                            </div>
+                            <p class="thread-content">${thread.content}</p>
+                            <div class="thread-actions">
+                                <button onclick="likePost('${thread.id}')" class="like-btn">
+                                    ❤️ ${thread.likes || 0}
+                                </button>
+                                <span class="author">by ${thread.user_id}</span>
+                            </div>
+                        `;
+                        container.appendChild(threadDiv);
+                    });
+                } else {
+                    container.innerHTML = '<p class="no-threads">No discussions yet. Be the first to start one!</p>';
+                }
+            } catch (error) {
+                showNotification('Failed to load forum threads', 'error');
+            }
+        }
+        
+        async function createForumPost() {
+            const title = document.getElementById('postTitle').value;
+            const content = document.getElementById('postContent').value;
+            const topic = document.getElementById('postTopic').value;
+            const level = document.getElementById('postLevel').value;
+            
+            if (!title.trim() || !content.trim()) {
+                showNotification('Please fill in title and content', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/forum/create_thread', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_id: currentUserId,
+                        title: title,
+                        content: content,
+                        topic: topic,
+                        level: level
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showNotification('Post created successfully!', 'success');
+                    document.getElementById('postTitle').value = '';
+                    document.getElementById('postContent').value = '';
+                    showForumTab('discussions');
+                    loadForumThreads();
+                } else {
+                    showNotification('Failed to create post', 'error');
+                }
+            } catch (error) {
+                showNotification('Error creating post', 'error');
+            }
+        }
+        
+        async function likePost(threadId) {
+            try {
+                const response = await fetch('/forum/like_thread', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_id: currentUserId,
+                        thread_id: threadId
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    loadForumThreads(); // Refresh to show updated likes
+                }
+            } catch (error) {
+                showNotification('Failed to like post', 'error');
+            }
+        }
+        
+        async function loadForumLeaderboard() {
+            const filter = document.getElementById('leaderboardFilter')?.value || 'all';
+            
+            try {
+                const response = await fetch(`/leaderboard/${filter}`);
+                const data = await response.json();
+                
+                const container = document.getElementById('leaderboardList');
+                container.innerHTML = '';
+                
+                if (data.success && data.leaderboard && data.leaderboard.length > 0) {
+                    data.leaderboard.forEach((user, index) => {
+                        const userDiv = document.createElement('div');
+                        userDiv.className = `leaderboard-item ${index < 3 ? 'top-three' : ''}`;
+                        
+                        const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+                        
+                        userDiv.innerHTML = `
+                            <div class="rank">${medal}</div>
+                            <div class="user-info">
+                                <span class="username">${user.user_id}</span>
+                                <span class="user-level">${user.level || 'Student'}</span>
+                            </div>
+                            <div class="points">
+                                <span class="point-value">${user.total_points || 0}</span>
+                                <span class="point-label">points</span>
+                            </div>
+                            <div class="stats">
+                                <span>💬 ${user.posts || 0}</span>
+                                <span>❤️ ${user.likes_received || 0}</span>
+                            </div>
+                        `;
+                        container.appendChild(userDiv);
+                    });
+                } else {
+                    container.innerHTML = '<p>No leaderboard data available.</p>';
+                }
+            } catch (error) {
+                showNotification('Failed to load leaderboard', 'error');
+            }
+        }
+        
+        // Forum System Functions
+        async function loadForumThreads() {
+            try {
+                const response = await fetch('/forum/threads');
+                const data = await response.json();
+                
+                const container = document.getElementById('forumThreads');
+                container.innerHTML = '';
+                
+                if (data.threads && data.threads.length > 0) {
+                    data.threads.forEach(thread => {
+                        const threadDiv = document.createElement('div');
+                        threadDiv.className = 'forum-thread';
+                        threadDiv.innerHTML = `
+                            <div class="thread-header">
+                                <h5 onclick="openThread('${thread.id}')" class="thread-title">${thread.title}</h5>
+                                <div class="thread-meta">
+                                    <span>💬 ${thread.replies || 0} replies</span>
+                                    <span>👤 ${thread.author}</span>
+                                    <span>📅 ${new Date(thread.created_at).toLocaleDateString()}</span>
+                                </div>
+                            </div>
+                            <p class="thread-preview">${thread.content.substring(0, 150)}...</p>
+                            <div class="thread-tags">
+                                <span class="tag">${thread.topic}</span>
+                                <span class="tag">${thread.level}</span>
+                            </div>
+                        `;
+                        container.appendChild(threadDiv);
+                    });
+                } else {
+                    container.innerHTML = '<p>No discussions yet. Start the first one!</p>';
+                }
+            } catch (error) {
+                showNotification('Failed to load forum threads', 'error');
+            }
+        }
+        
+        function createNewThread() {
+            const topic = document.getElementById('topic').value || 'General';
+            const level = document.getElementById('level').value;
+            
+            const modal = document.createElement('div');
+            modal.className = 'thread-modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h4>Start New Discussion</h4>
+                    <input type="text" id="threadTitle" placeholder="Discussion title..." value="Question about ${topic}">
+                    <textarea id="threadContent" placeholder="What would you like to discuss about ${topic}?" rows="6"></textarea>
+                    <div class="modal-actions">
+                        <button onclick="submitThread()" class="submit-btn">Post Discussion</button>
+                        <button onclick="closeModal()" class="cancel-btn">Cancel</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        async function submitThread() {
+            const title = document.getElementById('threadTitle').value;
+            const content = document.getElementById('threadContent').value;
+            const topic = document.getElementById('topic').value || 'General';
+            const level = document.getElementById('level').value;
+            
+            if (!title || !content) {
+                showNotification('Please fill in title and content', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/forum/create_thread', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_id: currentUserId,
+                        title: title,
+                        content: content,
+                        topic: topic,
+                        level: level
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showNotification('Discussion created!', 'success');
+                    closeModal();
+                    loadForumThreads();
+                } else {
+                    showNotification('Failed to create discussion', 'error');
+                }
+            } catch (error) {
+                showNotification('Error creating discussion', 'error');
+            }
+        }
+        
+        function closeModal() {
+            const modal = document.querySelector('.thread-modal');
+            if (modal) modal.remove();
+        }
+        
+        async function loadLeaderboard() {
+            const filter = document.getElementById('leaderboardFilter')?.value || 'all';
+            
+            try {
+                const response = await fetch(`/leaderboard/${filter}`);
+                const data = await response.json();
+                
+                const container = document.getElementById('leaderboardList');
+                container.innerHTML = '';
+                
+                if (data.leaderboard && data.leaderboard.length > 0) {
+                    data.leaderboard.forEach((user, index) => {
+                        const userDiv = document.createElement('div');
+                        userDiv.className = `leaderboard-item ${index < 3 ? 'top-three' : ''}`;
+                        
+                        const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+                        
+                        userDiv.innerHTML = `
+                            <div class="rank">${medal}</div>
+                            <div class="user-info">
+                                <span class="username">${user.username}</span>
+                                <span class="user-level">${user.level} Level</span>
+                            </div>
+                            <div class="points">
+                                <span class="point-value">${user.total_points}</span>
+                                <span class="point-label">points</span>
+                            </div>
+                            <div class="stats">
+                                <span>🎓 ${user.explanations_count}</span>
+                                <span>⬆️ ${user.upvotes_received}</span>
+                            </div>
+                        `;
+                        container.appendChild(userDiv);
+                    });
+                } else {
+                    container.innerHTML = '<p>No leaderboard data available.</p>';
+                }
+            } catch (error) {
+                showNotification('Failed to load leaderboard', 'error');
             }
         }
     </script>

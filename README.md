@@ -1,4 +1,4 @@
-# AI Learning Platform
+w# AI Learning Platform
 
 A minimal AI-driven platform that simplifies complex topics and supports multiple learning formats using Google Gemini AI.
 

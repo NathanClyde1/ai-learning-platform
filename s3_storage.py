@@ -450,3 +450,107 @@ class S3Storage:
     def get_file_url(self, s3_key):
         """Get file URL from S3"""
         return f"https://{self.bucket_name}.s3.amazonaws.com/{s3_key}"
+    
+    # Forum System Storage
+    def create_forum_thread(self, user_id, title, content, topic, level):
+        """Create forum thread in S3"""
+        thread_id = f"thread_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{user_id[:8]}"
+        
+        thread_data = {
+            'id': thread_id,
+            'user_id': user_id,
+            'author': user_id[:8] + '***',
+            'title': title,
+            'content': content,
+            'topic': topic,
+            'level': level,
+            'replies': 0,
+            'created_at': datetime.now().isoformat()
+        }
+        
+        try:
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=f"forum/threads/{thread_id}.json",
+                Body=json.dumps(thread_data),
+                ContentType='application/json'
+            )
+            
+            return {'success': True, 'message': 'Discussion created!', 'thread_id': thread_id}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def get_forum_threads(self):
+        """Get forum threads from S3"""
+        try:
+            response = self.s3_client.list_objects_v2(
+                Bucket=self.bucket_name,
+                Prefix='forum/threads/'
+            )
+            
+            threads = []
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    try:
+                        content = self.s3_client.get_object(Bucket=self.bucket_name, Key=obj['Key'])
+                        data = json.loads(content['Body'].read())
+                        threads.append(data)
+                    except:
+                        continue
+            
+            # Sort by creation date (newest first)
+            return sorted(threads, key=lambda x: x['created_at'], reverse=True)
+        except Exception as e:
+            print(f"Error getting forum threads: {e}")
+            return []
+    
+    def get_knowledge_leaderboard(self, filter_type='all'):
+        """Get knowledge points leaderboard from S3"""
+        try:
+            response = self.s3_client.list_objects_v2(
+                Bucket=self.bucket_name,
+                Prefix='users/'
+            )
+            
+            users = []
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    if '_stats.json' in obj['Key']:
+                        try:
+                            content = self.s3_client.get_object(Bucket=self.bucket_name, Key=obj['Key'])
+                            data = json.loads(content['Body'].read())
+                            
+                            # Extract user_id from filename
+                            user_id = obj['Key'].split('/')[-1].replace('_stats.json', '')
+                            
+                            users.append({
+                                'user_id': user_id,
+                                'username': user_id[:8] + '***',
+                                'total_points': data.get('total_points', 0),
+                                'explanations_count': data.get('explanations_count', 0),
+                                'upvotes_received': data.get('upvotes_received', 0),
+                                'level': self._get_user_level(data.get('total_points', 0))
+                            })
+                        except:
+                            continue
+            
+            # Sort by points and return top 20
+            users.sort(key=lambda x: x['total_points'], reverse=True)
+            return users[:20]
+            
+        except Exception as e:
+            print(f"Error getting leaderboard: {e}")
+            return []
+    
+    def _get_user_level(self, points):
+        """Determine user level based on points"""
+        if points >= 1000:
+            return 'Expert'
+        elif points >= 500:
+            return 'Advanced'
+        elif points >= 200:
+            return 'Intermediate'
+        elif points >= 50:
+            return 'Beginner'
+        else:
+            return 'Novice'

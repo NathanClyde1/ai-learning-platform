@@ -26,7 +26,7 @@ os.makedirs('uploads', exist_ok=True)
 
 class AILearningPlatform:
     def __init__(self):
-        self.learning_formats = ['chat', 'sketch', 'video', 'ebook']
+        self.learning_formats = ['chat', 'visual', 'video', 'ebook']
         self.bedrock_available = False
         self.ai_provider = BedrockProvider()
         self.s3_storage = S3Storage()
@@ -102,8 +102,8 @@ class AILearningPlatform:
     def get_bedrock_response(self, topic, complexity_level, format_type, context=""):
         """Get AI response from AWS Bedrock"""
         
-        # Always use smart fallback for now since Bedrock credentials need fixing
-        return self.get_smart_fallback(topic, complexity_level, format_type)
+        # Use AI provider instead of fallback
+        return self.ai_provider.get_ai_response(topic, complexity_level, format_type, context)
         
         level_prompts = {
             'beginner': 'Explain in very simple terms that anyone can understand',
@@ -143,10 +143,11 @@ class AILearningPlatform:
     def get_smart_fallback(self, topic, complexity_level, format_type):
         """Smart fallback system with good explanations"""
         
-        # Check S3 database first
-        topic_data = self.s3_db.get_topic(topic)
-        if topic_data:
-            return topic_data['explanation']
+        # Skip S3 database check for now - go straight to AI
+        print(f"🚀 Skipping S3 database, using AI for {topic}")
+        # topic_data = self.s3_db.get_topic(topic)
+        # if topic_data:
+        #     return topic_data['explanation']
         
         # Generic fallback responses for when AI fails
         topic_lower = topic.lower()
@@ -239,27 +240,28 @@ class AILearningPlatform:
         
     def simplify_topic(self, topic, complexity_level, format_type, uploaded_files=None):
         """Main function to get AI explanation for any topic"""
+        print(f"📚 Simplifying topic: {topic} ({complexity_level}, {format_type})")
+        
         context = ""
         if uploaded_files:
             for filepath in uploaded_files:
                 extracted = self.extract_text_from_file(filepath)
                 context += extracted + "\n"
-                print(f"Extracted {len(extracted)} chars from {filepath}")  # Debug
+                print(f"Extracted {len(extracted)} chars from {filepath}")
         
-        print(f"Total context: {len(context)} chars")  # Debug
+        print(f"Total context: {len(context)} chars")
         
-        # For video format, skip database and go straight to YouTube
-        if format_type == 'video':
-            print(f"Video format requested for {topic} - using YouTube integration")
-            ai_content = self.ai_provider.get_ai_response(topic, complexity_level, format_type, context)
-            if not ai_content:
-                ai_content = f"Video content for {topic}"
+        # Use AI for all content generation including video
+        print(f"Getting AI response for {topic}")
+        ai_content = self.ai_provider.get_ai_response(topic, complexity_level, format_type, context)
+        
+        if not ai_content:
+            print(f"AI returned empty, using fallback for {topic}")
+            ai_content = self.get_smart_fallback(topic, complexity_level, format_type)
         else:
-            # Use AI for all content generation
-            ai_content = self.ai_provider.get_ai_response(topic, complexity_level, format_type, context)
-            if not ai_content:
-                # Final fallback to generic responses
-                ai_content = self.get_smart_fallback(topic, complexity_level, format_type)
+            print(f"AI response received: {len(ai_content)} chars")
+                
+        print(f"🎨 Formatting content for {format_type}")
         formatted_content = self.format_content(ai_content, format_type)
         
         return {
@@ -272,54 +274,12 @@ class AILearningPlatform:
         """Apply format-specific styling to content"""
         if format_type == 'chat':
             return f"{content}\n\n💬 Ready to dive deeper? What specific aspect interests you most?"
-        
-        elif format_type == 'sketch':
-            # Generate proper Mermaid flowchart for visual format
-            topic_name = getattr(request, 'form', {}).get('topic', 'Topic') if hasattr(request, 'form') else 'Topic'
-            
-            mindmap_content = f"```mermaid\nflowchart TD\n    A[{topic_name}]\n"
-            
-            # Extract key concepts from content
-            key_concepts = []
-            lines = content.split('\n')
-            for line in lines:
-                if any(word in line.lower() for word in ['what is', 'ingredients', 'process', 'step', 'example', 'tips']):
-                    clean_line = line.strip().replace('#', '').replace('*', '')[:25]
-                    if len(clean_line) > 5:
-                        key_concepts.append(clean_line)
-                if len(key_concepts) >= 6:
-                    break
-            
-            # Add branches
-            for i, concept in enumerate(key_concepts, 1):
-                letter = chr(65 + i)  # B, C, D, etc.
-                mindmap_content += f"    A --> {letter}[{concept}]\n"
-            
-            mindmap_content += "```\n\n"
-            
-            return f"{mindmap_content}\n\n<div class='mindmap-tips'><h4>💡 Visual Mind Map:</h4><p>This diagram shows key concepts connected to the main topic. Follow the arrows to understand the relationships.</p></div>\n\n{content}\n\n✏️ Visual tip: Try sketching the key components as you read!"
-        
-        elif format_type == 'video':
-            # Video format is already handled by Polly integration
+        elif format_type in ['sketch', 'visual']:
             return content
-        
+        elif format_type == 'video':
+            return content
         elif format_type == 'ebook':
             return f"<h2>📚 Document Summary</h2>\n\n{content}"
-        
-        elif format_type == 'mindmap':
-            # Generate Mermaid mindmap syntax
-            lines = content.split('\n')
-            mindmap_content = f"```mermaid\nmindmap\n  root)({topic})\n"
-            
-            # Simple conversion to mindmap structure
-            for line in lines[:8]:  # Limit to 8 main branches
-                if line.strip() and len(line.strip()) > 3:
-                    clean_line = line.strip()[:30]  # Limit length
-                    mindmap_content += f"    {clean_line}\n"
-            
-            mindmap_content += "```\n\n"
-            
-            return f"{mindmap_content}\n\n<div class='mindmap-tips'><h4>💡 Mind Map Tips:</h4><p>This visual diagram shows the main concepts branching from the central topic. Each branch represents a key aspect you should understand.</p></div>"
         
         return content
     
@@ -412,8 +372,10 @@ def home():
 def learn():
     try:
         topic = request.form.get('topic')
-        level = request.form.get('level', 'beginner')
+        level = request.form.get('level', 'primary')
         format_type = request.form.get('format', 'chat')
+        
+        print(f"📝 Learn request: topic='{topic}', level='{level}', format='{format_type}'")
         
         if not topic:
             return jsonify({'error': 'Topic is required'}), 400
@@ -429,10 +391,13 @@ def learn():
                     uploaded_files.append(filepath)
         
         result = platform.simplify_topic(topic, level, format_type, uploaded_files)
+        print(f"✅ Learn result: {len(str(result))} chars")
         return jsonify(result)
     except Exception as e:
-        print(f"Error in learn route: {e}")
-        return jsonify({'error': 'Something went wrong processing your request'}), 500
+        print(f"ERROR in learn route: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Something went wrong, please try again. Debug: {str(e)}'}), 500
 
 @app.route('/formats')
 def get_formats():
@@ -441,6 +406,72 @@ def get_formats():
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/forum/threads', methods=['GET'])
+def get_forum_threads():
+    try:
+        threads = platform.s3_storage.get_forum_threads()
+        return jsonify({'success': True, 'threads': threads})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/forum/create_thread', methods=['POST'])
+def create_forum_thread():
+    try:
+        data = request.get_json()
+        result = platform.s3_storage.create_forum_thread(
+            data.get('user_id'),
+            data.get('title'),
+            data.get('content'),
+            data.get('topic'),
+            data.get('level')
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/forum/like_thread', methods=['POST'])
+def like_forum_thread():
+    try:
+        data = request.get_json()
+        result = platform.s3_storage.like_forum_thread(
+            data.get('user_id'),
+            data.get('thread_id')
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/leaderboard/<filter_type>', methods=['GET'])
+def get_leaderboard(filter_type):
+    try:
+        leaderboard = platform.s3_storage.get_knowledge_leaderboard(filter_type)
+        return jsonify({'success': True, 'leaderboard': leaderboard})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/analyze_blurting', methods=['POST'])
+def analyze_blurting():
+    try:
+        data = request.get_json()
+        topic = data.get('topic')
+        level = data.get('level')
+        blurt_text = data.get('blurt_text')
+        time_spent = data.get('time_spent', 0)
+        
+        if not topic or not blurt_text:
+            return jsonify({'success': False, 'error': 'Topic and blurt text are required'})
+        
+        # Analyze blurting using AI
+        analysis = platform.ai_provider.analyze_blurting(topic, level, blurt_text, time_spent)
+        
+        if analysis:
+            return jsonify({'success': True, 'analysis': analysis})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to analyze blurting session'})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/generate_flashcards', methods=['POST'])
 def generate_flashcards():
@@ -594,7 +625,7 @@ def get_game_stats(user_id):
         return jsonify({'error': str(e)})
 
 @app.route('/game/leaderboard')
-def get_leaderboard():
+def get_game_leaderboard():
     try:
         leaderboard = platform.s3_storage.get_leaderboard()
         return jsonify({'leaderboard': leaderboard})

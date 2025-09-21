@@ -91,7 +91,7 @@ Or add topics programmatically using the database module.
 
 ## API Integration
 
-The platform uses Google Gemini AI for unlimited topic coverage. When a topic isn't found in the local database, it automatically queries Gemini for a personalized response.
+The platform uses AWS Bedrock for unlimited topic coverage. When a topic isn't found in the local database, it automatically queries Gemini for a personalized response.
 
 ## Technologies Used
 

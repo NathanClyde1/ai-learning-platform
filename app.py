@@ -26,7 +26,7 @@ os.makedirs('uploads', exist_ok=True)
 
 class AILearningPlatform:
     def __init__(self):
-        self.learning_formats = ['chat', 'visual', 'video', 'ebook']
+        self.learning_formats = ['chat', 'visual', 'ebook']
         self.bedrock_available = False
         self.ai_provider = BedrockProvider()
         self.s3_storage = S3Storage()
@@ -276,8 +276,7 @@ class AILearningPlatform:
             return f"{content}\n\n💬 Ready to dive deeper? What specific aspect interests you most?"
         elif format_type in ['sketch', 'visual']:
             return content
-        elif format_type == 'video':
-            return content
+
         elif format_type == 'ebook':
             return f"<h2>📚 Document Summary</h2>\n\n{content}"
         

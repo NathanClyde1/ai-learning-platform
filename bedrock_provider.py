@@ -172,7 +172,7 @@ class BedrockProvider:
                     formatted_lines.append('<ul>')
                     in_list = True
                 pattern = r'^[•\-\*] '
-        formatted_lines.append(f'<li>{re.sub(pattern, "", line)}</li>')
+                formatted_lines.append(f'<li>{re.sub(pattern, "", line)}</li>')
             else:
                 if in_list:
                     formatted_lines.append('</ul>')
